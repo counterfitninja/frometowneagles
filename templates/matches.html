@@ -248,8 +248,8 @@
             {% if match.formation_id %}
             <span class="status-badge ready">✅ Ready</span>
             <a href="/formations/{{ match.formation_id }}/load" class="btn" style="background: #3498db;">📋 Edit Formation</a>
-            <a href="/formations/{{ match.formation_id }}/gameday" class="btn" style="background: #27ae60;">👁️ View</a>
-            <button onclick="shareMatchTeam(this, {{ match.id }})" class="btn" style="background: #25D366; padding: 8px 12px;" title="Share team on WhatsApp">📱</button>
+            <a href="/formations/{{ match.formation_id }}/gameday" class="btn" style="background: #27ae60;">👁️ View Formation</a>
+            <button onclick="shareMatchTeam(this, {{ match.id }})" class="btn" style="background: #25D366;" title="Share team on WhatsApp">📱 WhatsApp</button>
             {% else %}
             <span class="status-badge pending">⚠️ No Formation</span>
             <a href="/pitch?match_id={{ match.id }}&match_name={{ match.match_date }} - vs {{ match.opponent }}" class="btn" style="background: #667eea;">📋 Create Formation</a>
