@@ -249,6 +249,7 @@
             <span class="status-badge ready">✅ Ready</span>
             <a href="/formations/{{ match.formation_id }}/load" class="btn" style="background: #3498db;">📋 Edit Formation</a>
             <a href="/formations/{{ match.formation_id }}/gameday" class="btn" style="background: #27ae60;">👁️ View</a>
+            <button onclick="shareMatchTeam(this, {{ match.id }})" class="btn" style="background: #25D366; padding: 8px 12px;" title="Share team on WhatsApp">📱</button>
             {% else %}
             <span class="status-badge pending">⚠️ No Formation</span>
             <a href="/pitch?match_id={{ match.id }}&match_name={{ match.match_date }} - vs {{ match.opponent }}" class="btn" style="background: #667eea;">📋 Create Formation</a>
@@ -377,5 +378,81 @@ async function deleteMatch(matchId) {
         alert('Error deleting match: ' + error.message);
     }
 }
+
+async function shareMatchTeam(btn, matchId) {
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '⏳';
+    btn.disabled = true;
+
+    try {
+        const data = await fetch(`/api/matches/${matchId}/team`).then(r => r.json());
+
+        // Build a card matching the public_next_match style
+        const card = document.createElement('div');
+        card.style.cssText = 'position:fixed;left:-9999px;top:0;background:white;border-radius:16px;padding:30px;width:480px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;';
+
+        const [y, m, d] = data.match_date.split('-');
+        const dateStr = `${d}/${m}/${y}`;
+
+        let html = `
+            <div style="text-align:center;padding-bottom:20px;margin-bottom:20px;border-bottom:3px solid #667eea;">
+                <div style="font-size:24px;font-weight:bold;color:#2c3e50;margin-bottom:8px;">⚽ vs ${data.opponent}</div>
+                <div style="font-size:16px;color:#7f8c8d;margin-bottom:4px;">📅 ${dateStr}</div>
+                <div style="font-size:16px;color:#7f8c8d;">📍 ${data.location}</div>
+            </div>`;
+
+        if (data.playing.length > 0) {
+            html += `<div style="background:#f0fff4;border:2px solid #27ae60;border-radius:10px;padding:15px;margin-bottom:15px;">
+                <div style="font-size:16px;font-weight:bold;color:#2c3e50;margin-bottom:12px;">✅ Playing (${data.playing.length})</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">`;
+            data.playing.forEach(p => {
+                const gk = p.position === 'GK' ? ' 🧤' : '';
+                html += `<span style="background:#27ae60;color:white;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;">${p.name}${gk}</span>`;
+            });
+            html += `</div></div>`;
+        }
+
+        if (data.not_playing.length > 0) {
+            html += `<div style="background:#fff5f5;border:2px solid #e74c3c;border-radius:10px;padding:15px;">
+                <div style="font-size:16px;font-weight:bold;color:#c0392b;margin-bottom:12px;">❌ Not Playing (${data.not_playing.length})</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">`;
+            data.not_playing.forEach(p => {
+                const gk = p.position === 'GK' ? ' 🧤' : '';
+                html += `<span style="background:#c0392b;color:white;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;">${p.name}${gk}</span>`;
+            });
+            html += `</div></div>`;
+        }
+
+        card.innerHTML = html;
+        document.body.appendChild(card);
+
+        const canvas = await html2canvas(card, { backgroundColor: '#ffffff', scale: 2, useCORS: true, logging: false });
+        document.body.removeChild(card);
+
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        const file = new File([blob], 'team-sheet.png', { type: 'image/png' });
+
+        if (navigator.share && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: 'Team Sheet' });
+        } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'team-sheet.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            alert('Could not generate team sheet. Please try again.');
+        }
+    } finally {
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+    }
+}
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 {% endblock %}

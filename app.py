@@ -280,6 +280,45 @@ def formations():
         formations_list = conn.execute('SELECT * FROM formations ORDER BY created_at DESC').fetchall()
     return render_template('formations.html', formations=formations_list, version=VERSION)
 
+@app.route('/api/matches/<int:match_id>/team')
+@login_required
+def api_match_team(match_id):
+    import json
+    with get_db() as conn:
+        match = conn.execute('''
+            SELECT m.*, f.data as formation_data
+            FROM matches m
+            LEFT JOIN formations f ON m.formation_id = f.id
+            WHERE m.id = ?
+        ''', (match_id,)).fetchone()
+        all_players = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
+
+    if not match:
+        return jsonify({'error': 'Match not found'}), 404
+
+    match_dict = dict(match)
+    if match_dict.get('formation_data'):
+        formation_data = json.loads(match_dict['formation_data'])
+        playing_ids = set()
+        for formation in formation_data.get('formations', []):
+            for p in formation.get('players', []):
+                playing_ids.add(str(p['id']))
+            for p in formation.get('subs', []):
+                playing_ids.add(str(p['id']))
+        playing = [dict(p) for p in all_players if str(p['id']) in playing_ids]
+        not_playing = [dict(p) for p in all_players if str(p['id']) not in playing_ids]
+    else:
+        playing = []
+        not_playing = [dict(p) for p in all_players]
+
+    return jsonify({
+        'match_date': match_dict['match_date'],
+        'opponent': match_dict['opponent'],
+        'location': match_dict['location'] or 'TBD',
+        'playing': playing,
+        'not_playing': not_playing
+    })
+
 @app.route('/api/formations')
 @login_required
 def api_formations():
