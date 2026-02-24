@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Matches - Under-12 Football</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            border: 2px solid rgba(255,255,255,0.3);
+            transition: all 0.3s;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.5);
+        }
+
+        .nav-btn.login {
+            background: #27ae60;
+            border-color: #27ae60;
+        }
+
+        .nav-btn.login:hover {
+            background: #229954;
+        }
+
+        .overview-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .match-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .match-header {
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .match-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .match-info {
+            font-size: 15px;
+            color: #7f8c8d;
+        }
+
+        .team-section {
+            margin-bottom: 20px;
+            padding: 18px;
+            border-radius: 12px;
+        }
+
+        .team-section.playing {
+            background: #f0fff4;
+            border: 3px solid #27ae60;
+        }
+
+        .team-section.not-playing {
+            background: #fff5f5;
+            border: 3px solid #e74c3c;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title.not-playing-title {
+            color: #c0392b;
+        }
+
+        .count-badge {
+            background: #27ae60;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .count-badge.red {
+            background: #e74c3c;
+        }
+
+        .players-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 10px;
+        }
+
+        .player-chip {
+            background: #27ae60;
+            color: white;
+            padding: 10px 14px;
+            border-radius: 25px;
+            font-size: 14px;
+            text-align: center;
+            font-weight: 600;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+        }
+
+        .player-chip.not-playing {
+            background: #c0392b;
+        }
+
+        .no-matches {
+            background: white;
+            border-radius: 16px;
+            padding: 60px 20px;
+            text-align: center;
+            color: #7f8c8d;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .no-matches h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            opacity: 0.8;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .match-title {
+                font-size: 20px;
+            }
+
+            .players-grid {
+                grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 All Matches Overview</h1>
+            <p>{{ team_title }}</p>
+            <div class="nav-buttons">
+                <a href="/public/next-match" class="nav-btn">⚽ Next Match</a>
+                <a href="/login" class="nav-btn login">🔐 Manager Login</a>
+            </div>
+        </div>
+
+        {% if matches %}
+        <div class="overview-grid">
+            {% for match in matches %}
+            <div class="match-card">
+                <div class="match-header">
+                    <div class="match-title">vs {{ match.opponent }}</div>
+                    <div class="match-info">📅 {{ match.match_date | ukdate }} • 📍 {{ match.location or 'TBD' }}</div>
+                </div>
+
+                {% if match.playing %}
+                <div class="team-section playing">
+                    <div class="section-title">
+                        ✅ Playing
+                        <span class="count-badge">{{ match.playing|length }}</span>
+                    </div>
+                    <div class="players-grid">
+                        {% for player in match.playing %}
+                        <div class="player-chip">
+                            {{ player.name }}{% if player.position == 'GK' %} 🧤{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if match.not_playing %}
+                <div class="team-section not-playing">
+                    <div class="section-title not-playing-title">
+                        ❌ Not Playing
+                        <span class="count-badge red">{{ match.not_playing|length }}</span>
+                    </div>
+                    <div class="players-grid">
+                        {% for player in match.not_playing %}
+                        <div class="player-chip not-playing">
+                            {{ player.name }}{% if player.position == 'GK' %} 🧤{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if not match.playing and not match.not_playing %}
+                <p style="text-align: center; color: #7f8c8d; font-style: italic;">No team selected for this match</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="no-matches">
+            <h2>No Matches Available</h2>
+            <p>Check back later for match schedules</p>
+        </div>
+        {% endif %}
+
+        <div class="footer">
+            {% if version %}
+            <p>v{{ version }}</p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

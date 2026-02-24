@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+.env*/
+*.sqlite
+*.db
+.idea/
+.vscode/
+.DS_Store
+
+# Claude Code
+.claude/
+nul

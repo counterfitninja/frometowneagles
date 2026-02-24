@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}Matches Overview - Under-12 Football Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .overview-grid {
+        display: grid;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .match-overview-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .match-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 15px;
+        margin-bottom: 15px;
+        border-bottom: 2px solid #667eea;
+    }
+
+    .match-title {
+        font-size: 20px;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+
+    .match-date {
+        font-size: 14px;
+        color: #7f8c8d;
+    }
+
+    .team-section {
+        margin-bottom: 20px;
+        padding: 15px;
+        border-radius: 8px;
+    }
+
+    .team-section.playing {
+        background: #f0fff4;
+        border: 2px solid #27ae60;
+    }
+
+    .team-section.not-playing {
+        background: #fff5f5;
+        border: 2px solid #e74c3c;
+    }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .section-title.not-playing {
+        color: #c0392b;
+    }
+
+    .players-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+    }
+
+    .player-chip {
+        background: #27ae60;
+        color: white;
+        padding: 8px 14px;
+        border-radius: 20px;
+        font-size: 14px;
+        text-align: center;
+        font-weight: 600;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .player-chip.not-playing {
+        background: #c0392b;
+        font-weight: 700;
+    }
+
+    .count-badge {
+        background: #27ae60;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .count-badge.red {
+        background: #e74c3c;
+    }
+
+    .print-button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 20px;
+    }
+
+    .print-button:hover {
+        background: #5568d3;
+    }
+
+    @media print {
+        .print-button, nav, .back-button {
+            display: none;
+        }
+        
+        body {
+            background: white;
+        }
+        
+        .container {
+            max-width: 100%;
+            padding: 10px;
+        }
+        
+        .card {
+            box-shadow: none;
+            padding: 0;
+            background: white;
+        }
+        
+        .match-overview-card {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            margin-bottom: 25px;
+            border: 2px solid #2c3e50;
+            box-shadow: none;
+            padding: 15px;
+        }
+        
+        .match-header {
+            border-bottom: 3px solid #667eea;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+        }
+        
+        .match-title {
+            font-size: 24px;
+            color: #000;
+            font-weight: 900;
+        }
+        
+        .match-date {
+            font-size: 16px;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+        
+        .team-section {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-width: 3px;
+        }
+        
+        .team-section.playing {
+            background: #e8f8f0;
+            border-color: #27ae60;
+        }
+        
+        .team-section.not-playing {
+            background: #fdecea;
+            border-color: #e74c3c;
+        }
+        
+        .section-title {
+            font-size: 20px;
+            font-weight: 900;
+            margin-bottom: 10px;
+            color: #000;
+        }
+        
+        .players-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        
+        .player-chip {
+            font-size: 15px;
+            padding: 10px 12px;
+            font-weight: 700;
+            border: 2px solid rgba(0,0,0,0.1);
+        }
+        
+        .player-chip.not-playing {
+            font-weight: 800;
+        }
+        
+        .count-badge {
+            font-size: 15px;
+            padding: 5px 12px;
+            font-weight: 900;
+            border: 2px solid rgba(0,0,0,0.2);
+        }
+        
+        h2 {
+            font-size: 32px;
+            color: #000;
+            text-align: center;
+            margin-bottom: 25px;
+            border-bottom: 4px solid #667eea;
+            padding-bottom: 15px;
+            font-weight: 900;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .players-grid {
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>📋 All Matches Overview</h2>
+    <p style="color: #7f8c8d; margin-bottom: 20px;">View all upcoming matches with team selections</p>
+
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button onclick="window.print()" class="print-button">🖨️ Print Overview</button>
+        <a href="/matches/overview/text" target="_blank" class="print-button" style="display: inline-block; text-decoration: none; background: #27ae60;">💬 WhatsApp Text</a>
+    </div>
+
+    {% if matches %}
+    <div class="overview-grid">
+        {% for match in matches %}
+        <div class="match-overview-card">
+            <div class="match-header">
+                <div>
+                    <div class="match-title">vs {{ match.opponent }}</div>
+                    <div class="match-date">{{ match.match_date | ukdate }} - {{ match.location or 'TBD' }}</div>
+                </div>
+            </div>
+
+            {% if match.playing %}
+            <div class="team-section playing">
+                <div class="section-title">
+                    ✅ Playing
+                    <span class="count-badge">{{ match.playing|length }}</span>
+                </div>
+                <div class="players-grid">
+                    {% for player in match.playing %}
+                    <div class="player-chip">
+                        {{ player.name }}{% if player.position == 'GK' %} 🧤{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if match.not_playing %}
+            <div class="team-section not-playing">
+                <div class="section-title not-playing">
+                    ❌ Not Playing This Match
+                    <span class="count-badge red">{{ match.not_playing|length }}</span>
+                </div>
+                <div class="players-grid">
+                    {% for player in match.not_playing %}
+                    <div class="player-chip not-playing">
+                        {{ player.name }}{% if player.position == 'GK' %} 🧤{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if not match.playing and not match.not_playing %}
+            <p style="color: #7f8c8d; text-align: center; font-style: italic;">No team selected for this match</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: #7f8c8d;">
+        <p>No matches with teams found.</p>
+        <p style="margin-top: 10px;"><a href="/matches" style="color: #667eea;">Go to Matches</a> to create teams.</p>
+    </div>
+    {% endif %}
+
+    {% if player_stats %}
+    <div class="match-overview-card" style="margin-top: 30px;">
+        <h3 style="color: #2c3e50; margin-bottom: 20px; text-align: center; font-size: 24px;">📊 Player Statistics Across All Matches</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                    <th style="padding: 12px; text-align: left; font-weight: bold; color: #2c3e50;">Player</th>
+                    <th style="padding: 12px; text-align: center; font-weight: bold; color: #27ae60;">✅ Playing</th>
+                    <th style="padding: 12px; text-align: center; font-weight: bold; color: #e74c3c;">❌ Not Playing</th>
+                    <th style="padding: 12px; text-align: center; font-weight: bold; color: #2c3e50;">Total Games</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in player_stats %}
+                <tr style="border-bottom: 1px solid #dee2e6;">
+                    <td style="padding: 12px; font-weight: 600; color: #2c3e50;">
+                        {{ stat.name }}{% if stat.position == 'GK' %} 🧤{% endif %}
+                    </td>
+                    <td style="padding: 12px; text-align: center; color: #27ae60; font-weight: bold; font-size: 18px;">
+                        {{ stat.playing }}
+                    </td>
+                    <td style="padding: 12px; text-align: center; color: #e74c3c; font-weight: bold; font-size: 18px;">
+                        {{ stat.not_playing }}
+                    </td>
+                    <td style="padding: 12px; text-align: center; color: #2c3e50; font-weight: bold; font-size: 18px;">
+                        {{ stat.playing + stat.not_playing }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 30px;">
+        <a href="/matches" class="btn back-button" style="background: #95a5a6;">← Back to Matches</a>
+    </div>
+</div>
+{% endblock %}

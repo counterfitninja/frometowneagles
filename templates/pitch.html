@@ -1,0 +1,1599 @@
+{% extends "base.html" %}
+
+{% block title %}Team Formation - Under-12 Football Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .save-notification {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        background: #27ae60;
+        color: white;
+        padding: 15px 25px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        font-weight: bold;
+        z-index: 10000;
+        animation: slideIn 0.3s ease-out, fadeOut 0.3s ease-in 2.7s;
+        display: none;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes fadeOut {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
+
+    .formation-container {
+        display: grid;
+        grid-template-columns: 250px 1fr 200px;
+        gap: 20px;
+        overflow: visible;
+    }
+
+    .players-sidebar {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        max-height: 800px;
+        overflow-y: auto;
+        transition: all 0.3s ease;
+    }
+
+    .players-sidebar.collapsed {
+        width: 50px;
+        padding: 10px;
+        overflow: hidden;
+    }
+
+    .players-sidebar.collapsed #availablePlayersList {
+        display: none;
+    }
+
+    .players-sidebar.collapsed h3 span:not(.collapse-icon) {
+        display: none;
+    }
+
+    .players-sidebar h3 {
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        white-space: nowrap;
+    }
+
+    .collapse-icon {
+        font-size: 12px;
+        transition: transform 0.3s ease;
+        flex-shrink: 0;
+    }
+
+    .players-sidebar.collapsed .collapse-icon {
+        transform: rotate(-90deg);
+    }
+
+    .subs-bench {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        max-height: 800px;
+        overflow-y: auto;
+    }
+
+    .bench-area {
+        min-height: 100px;
+        border: 2px dashed #ecf0f1;
+        border-radius: 8px;
+        padding: 10px;
+        margin-top: 10px;
+    }
+
+    .sub-player {
+        background: #fff3cd;
+        border: 2px solid #ffc107;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 8px;
+        cursor: grab;
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .sub-player:hover {
+        background: #ffc107;
+        color: white;
+    }
+
+    .player-item {
+        background: #f8f9fa;
+        border: 2px solid #ecf0f1;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.3s;
+        user-select: none;
+    }
+
+    .player-item:hover {
+        background: #667eea;
+        color: white;
+        transform: translateX(5px);
+    }
+    
+    .player-item:active {
+        transform: scale(0.95);
+    }
+
+    .player-item.dragging {
+        opacity: 0.5;
+        cursor: grabbing;
+    }
+
+    .pitch-container {
+        position: relative;
+        background: linear-gradient(to right, #4a7c3a 0%, #5a8c4a 50%, #4a7c3a 100%);
+        border: 3px solid white;
+        border-radius: 12px;
+        height: 500px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        overflow: visible;
+        cursor: crosshair;
+    }
+
+    .pitch-lines {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+        z-index: 1;
+    }
+
+    .center-circle {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%);
+        width: 80px;
+        height: 80px;
+        border: 3px solid rgba(255,255,255,0.6);
+        border-radius: 50%;
+        border-left: none;
+        pointer-events: none;
+    }
+
+    .halfway-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 3px;
+        height: 100%;
+        background: rgba(255,255,255,0.6);
+        pointer-events: none;
+    }
+
+    .penalty-area {
+        position: absolute;
+        width: 150px;
+        height: 250px;
+        border: 3px solid rgba(255,255,255,0.6);
+        pointer-events: none;
+    }
+
+    .penalty-area.right {
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        border-right: none;
+    }
+
+    .goal-area {
+        position: absolute;
+        width: 60px;
+        height: 120px;
+        border: 3px solid rgba(255,255,255,0.6);
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        border-right: none;
+        pointer-events: none;
+    }
+
+    .player-on-pitch {
+        position: absolute;
+        width: 60px;
+        height: 60px;
+        background: #667eea;
+        border: 3px solid white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 11px;
+        text-align: center;
+        cursor: move;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        transition: transform 0.2s;
+        z-index: 10;
+        touch-action: none;
+        user-select: none;
+        margin-left: -30px;
+        margin-top: -30px;
+    }
+
+    .player-on-pitch:hover {
+        transform: scale(1.1);
+    }
+
+    .player-on-pitch:active {
+        transform: scale(1.15);
+    }
+
+    .player-on-pitch .player-name {
+        word-wrap: break-word;
+        max-width: 54px;
+        line-height: 1.2;
+        pointer-events: none;
+    }
+
+    .controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    
+    .controls select,
+    .controls button {
+        flex: 1 1 auto;
+        min-width: 120px;
+    }
+    
+    .primary-controls,
+    .secondary-controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        width: 100%;
+    }
+    
+    .toggle-more {
+        display: none;
+    }
+
+    @media (max-width: 768px) {
+        .formation-container {
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .pitch-container {
+            height: 400px;
+            order: 1;
+            margin-bottom: 15px;
+        }
+        
+        .players-sidebar {
+            max-height: 250px;
+            order: 2;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .players-sidebar h3 {
+            font-size: 16px;
+            margin-bottom: 10px !important;
+        }
+        
+        .subs-bench {
+            max-height: 400px;
+            order: 3;
+            padding: 15px;
+        }
+        
+        .subs-bench h3 {
+            font-size: 16px;
+            margin-bottom: 10px !important;
+        }
+        
+        .player-on-pitch {
+            width: 45px;
+            height: 45px;
+            font-size: 9px;
+            border: 2px solid white;
+            margin-left: -22.5px;
+            margin-top: -22.5px;
+        }
+        
+        .player-on-pitch .player-name {
+            max-width: 40px;
+            line-height: 1.1;
+        }
+        
+        .player-item {
+            padding: 10px 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .sub-player {
+            padding: 8px;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+        
+        .controls {
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .primary-controls {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 5px;
+        }
+        
+        .secondary-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+        
+        .secondary-controls.collapsed {
+            display: none;
+        }
+        
+        .toggle-more {
+            display: block;
+            width: 100%;
+            background: #95a5a6;
+            font-size: 12px;
+            padding: 10px;
+        }
+        
+        .controls select,
+        .controls button {
+            width: 100%;
+            min-width: unset;
+            font-size: 12px;
+            padding: 10px 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* Better touch targets on mobile */
+        .controls button {
+            min-height: 44px;
+        }
+        
+        /* Icon-only on mobile for some buttons */
+        .btn-icon-mobile {
+            font-size: 16px;
+        }
+        
+        .btn-text-mobile {
+            display: none;
+        }
+        
+        /* Improve card spacing */
+        .card {
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .card h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .card p {
+            font-size: 12px;
+            margin-bottom: 8px !important;
+        }
+        
+        /* Smaller pitch markings on mobile */
+        .center-circle {
+            width: 60px;
+            height: 60px;
+            border-width: 2px;
+        }
+        
+        .penalty-area {
+            width: 100px;
+            height: 180px;
+            border-width: 2px;
+        }
+        
+        .goal-area {
+            width: 40px;
+            height: 80px;
+            border-width: 2px;
+        }
+        
+        .halfway-line {
+            width: 2px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Save notification -->
+<div id="saveNotification" class="save-notification">
+    ✓ Formation saved successfully!
+</div>
+
+<div class="card">
+    <h2>⚽ Match Formation</h2>
+    <div id="matchOpponent" style="display: none; background: #e8f5e9; padding: 12px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
+        <span style="font-size: 18px; font-weight: bold; color: #2e7d32;">🏆 vs <span id="opponentName"></span></span>
+    </div>
+    <p style="color: #7f8c8d; margin-bottom: 10px;">Create multiple formations per match (9-a-side)</p>
+    <p style="color: #3498db; font-size: 13px; margin-bottom: 20px; background: #e3f2fd; padding: 8px; border-radius: 6px;">
+        📱 <strong>Mobile:</strong> Tap a player below, then tap the pitch to place them. Drag players on pitch to reposition.
+    </p>
+    
+    <div class="controls">
+        <div class="primary-controls">
+            <select id="formationSelect" onchange="changeFormation()" class="btn" style="grid-column: 1;">
+                <option value="0">Starting Lineup</option>
+            </select>
+            <button onclick="addFormation()" class="btn" style="background: #27ae60;" title="Add Formation"><span class="btn-icon-mobile">➕</span><span class="btn-text-mobile"> Add Formation</span></button>
+            <button onclick="removeFormation()" class="btn" style="background: #e74c3c;" title="Remove Formation"><span class="btn-icon-mobile">➖</span><span class="btn-text-mobile"> Remove Formation</span></button>
+            <button onclick="clearPitch()" class="btn btn-danger" title="Clear Pitch"><span class="btn-icon-mobile">🗑️</span> Clear</button>
+        </div>
+        
+        <button onclick="toggleMore()" class="btn toggle-more" style="display: none;">▼ More Options</button>
+        
+        <div class="secondary-controls" id="secondaryControls" style="display: none;">
+        </div>
+        
+        <button onclick="console.log('Button clicked!'); saveMatch();" class="btn btn-success" style="width: 100%; font-weight: bold;">💾 Save Match</button>
+    </div>
+    
+    <script>
+    console.log('=== PITCH EDITOR SCRIPT LOADING ===');
+    </script>
+    
+    <div class="formation-container">
+        <div class="players-sidebar collapsed" id="playersSidebar">
+            <h3 style="margin-bottom: 15px; color: #2c3e50;" onclick="toggleSidebar()">
+                <span class="collapse-icon">▼</span>
+                <span>Not Playing</span>
+            </h3>
+            <div id="availablePlayersList">
+                {% if players %}
+                    {% for player in players %}
+                    <div class="player-item" draggable="true" data-id="{{ player.id }}" data-name="{{ player.name }}" data-position="{{ player.position }}">
+                        <div style="font-weight: bold;">{{ player.name }}</div>
+                        <div style="font-size: 12px; color: #7f8c8d;">{{ player.position }} - {% for i in range(player.rating) %}⭐{% endfor %}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="color: #7f8c8d; text-align: center;">No players available. <a href="/players">Add players</a> first.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="pitch-container" id="pitch">
+            <div class="pitch-lines">
+                <div class="halfway-line"></div>
+                <div class="center-circle"></div>
+                <div class="penalty-area right"></div>
+                <div class="goal-area"></div>
+            </div>
+        </div>
+        
+        <div class="subs-bench">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: #2c3e50;">🪑 Substitutes Bench</h3>
+                <button onclick="addSubFromSidebar()" class="btn" style="padding: 4px 8px; font-size: 11px; background: #27ae60;">➕ Add Sub</button>
+            </div>
+            <p style="font-size: 12px; color: #7f8c8d; margin-bottom: 10px;">Drag players here when not on pitch</p>
+            <div class="bench-area" id="subsBench">
+                <!-- Subs will appear here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="formationModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 30px; border-radius: 12px; max-width: 400px; width: 90%;">
+        <h3 style="margin-bottom: 20px;">Save Match Formation</h3>
+        <div class="form-group">
+            <label for="formationName">Match Name</label>
+            <input type="text" id="formationName" placeholder="e.g., vs Eagles - Jan 15">
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="confirmSave()" class="btn btn-success">Save</button>
+            <button onclick="closeModal()" class="btn btn-danger">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleSidebar() {
+        const sidebar = document.getElementById('playersSidebar');
+        sidebar.classList.toggle('collapsed');
+    }
+
+    let draggedPlayer = null;
+    let playersOnPitch = [];
+    let subsOnBench = [];
+    let currentFormationIndex = 0;
+    let matchFormations = [{
+        name: 'Starting Lineup',
+        players: [],
+        subs: []
+    }];
+    let loadedMatchId = null;  // Track if we loaded an existing match
+    let loadedMatchName = null;  // Store original match name
+    let loadedFormationId = null;  // Track formation ID for updates
+    
+    // Store all available players
+    const allPlayers = [
+        {% if players %}
+        {% for player in players %}
+        { id: '{{ player.id }}', name: '{{ player.name }}', position: '{{ player.position }}' }{{ ',' if not loop.last else '' }}
+        {% endfor %}
+        {% endif %}
+    ];
+
+    // Setup drag and drop for sidebar players
+    document.querySelectorAll('.player-item').forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+            draggedPlayer = {
+                id: item.dataset.id,
+                name: item.dataset.name,
+                position: item.dataset.position
+            };
+            item.classList.add('dragging');
+        });
+
+        item.addEventListener('dragend', (e) => {
+            item.classList.remove('dragging');
+        });
+        
+        // Double-click to add directly to subs bench
+        item.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            const player = {
+                id: item.dataset.id,
+                name: item.dataset.name,
+                position: item.dataset.position
+            };
+            addPlayerToBench(player);
+        });
+        
+        // Click/tap to select player for adding to pitch
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            draggedPlayer = {
+                id: item.dataset.id,
+                name: item.dataset.name,
+                position: item.dataset.position
+            };
+            item.style.background = '#667eea';
+            item.style.color = 'white';
+            
+            // Clear other selections
+            document.querySelectorAll('.player-item').forEach(other => {
+                if (other !== item) {
+                    other.style.background = "";
+                    other.style.color = "";
+                }
+            });
+        });
+    });
+
+    // Setup pitch drop zone
+    const pitch = document.getElementById('pitch');
+    const subsBench = document.getElementById('subsBench');
+
+    pitch.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+    
+    // Setup bench drop zone
+    subsBench.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+    
+    subsBench.addEventListener('drop', (e) => {
+        e.preventDefault();
+        
+        // Check if dragging from pitch
+        const draggingOnPitch = document.querySelector('[data-dragging-on-pitch="true"]');
+        if (draggingOnPitch) {
+            const id = draggingOnPitch.dataset.id;
+            const player = playersOnPitch.find(p => String(p.id) === String(id));
+            if (player) {
+                draggingOnPitch.remove();
+                playersOnPitch = playersOnPitch.filter(p => String(p.id) !== String(id));
+                
+                // Show player back in available players sidebar
+                document.querySelectorAll('.player-item').forEach(item => {
+                    if (String(item.dataset.id) === String(id)) {
+                        item.style.display = '';
+                    }
+                });
+                
+                // Only add to bench if not already there
+                if (!subsOnBench.find(p => String(p.id) === String(player.id))) {
+                    addPlayerToBench(player);
+                }
+            }
+        } else if (draggedPlayer) {
+            // Dragging from available players list
+            const id = draggedPlayer.id;
+            
+            // Only add to bench if not already there
+            if (!subsOnBench.find(p => String(p.id) === String(id))) {
+                addPlayerToBench({
+                    id: id,
+                    name: draggedPlayer.name,
+                    position: draggedPlayer.position
+                });
+                
+                // Hide player from available players list
+                document.querySelectorAll('.player-item').forEach(item => {
+                    if (String(item.dataset.id) === String(id)) {
+                        item.style.display = 'none';
+                    }
+                });
+            }
+            
+            draggedPlayer = null;
+        }
+    });
+
+    pitch.addEventListener('drop', (e) => {
+        e.preventDefault();
+        
+        // Check if we're repositioning a player already on pitch
+        const draggingOnPitch = document.querySelector('[data-dragging-on-pitch="true"]');
+        if (draggingOnPitch) {
+            const rect = pitch.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const xPercent = (x / rect.width) * 100;
+            const yPercent = (y / rect.height) * 100;
+            
+            draggingOnPitch.style.left = `${xPercent}%`;
+            draggingOnPitch.style.top = `${yPercent}%`;
+            draggingOnPitch.dataset.xPercent = xPercent;
+            draggingOnPitch.dataset.yPercent = yPercent;
+
+            // Update position in array
+            const id = draggingOnPitch.dataset.id;
+            const player = playersOnPitch.find(p => String(p.id) === String(id));
+            if (player) {
+                player.xPercent = xPercent;
+                player.yPercent = yPercent;
+            }
+            return;
+        }
+        
+        // Otherwise, adding new player from sidebar or bench
+        if (!draggedPlayer) return;
+
+        // Check if player already on pitch
+        if (playersOnPitch.find(p => String(p.id) === String(draggedPlayer.id))) {
+            alert('Player already on pitch!');
+            return;
+        }
+
+        // Check if 9 players already
+        if (playersOnPitch.length >= 9) {
+            alert('Maximum 9 players allowed!');
+            return;
+        }
+
+        // Get drop position relative to pitch
+        const rect = pitch.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        // Remove from bench if coming from there
+        subsOnBench = subsOnBench.filter(p => String(p.id) !== String(draggedPlayer.id));
+        document.querySelectorAll('.sub-player').forEach(subDiv => {
+            if (String(subDiv.dataset.id) === String(draggedPlayer.id)) {
+                subDiv.remove();
+            }
+        });
+        
+        // Hide player from available players sidebar
+        document.querySelectorAll('.player-item').forEach(item => {
+            if (String(item.dataset.id) === String(draggedPlayer.id)) {
+                item.style.display = 'none';
+            }
+        });
+
+        // Create player on pitch
+        addPlayerToPitch(draggedPlayer, x, y);
+        draggedPlayer = null;
+    });
+    
+    // Touch support for pitch - tap to add player at center
+    pitch.addEventListener('click', (e) => {
+        console.log('Pitch clicked!', 'draggedPlayer:', draggedPlayer);
+        
+        if (!draggedPlayer) {
+            console.log('No player selected');
+            return;
+        }
+        
+        // Don't add if clicking on existing player
+        if (e.target.closest('.player-on-pitch')) {
+            console.log('Clicked on existing player');
+            return;
+        }
+        
+        // Check if player already on pitch
+        if (playersOnPitch.find(p => String(p.id) === String(draggedPlayer.id))) {
+            alert('Player already on pitch!');
+            draggedPlayer = null;
+            // Clear selections
+            document.querySelectorAll('.player-item').forEach(item => {
+                item.style.background = "";
+                item.style.color = "";
+            });
+            return;
+        }
+
+        // Check if 9 players already
+        if (playersOnPitch.length >= 9) {
+            alert('Maximum 9 players allowed!');
+            draggedPlayer = null;
+            // Clear selections
+            document.querySelectorAll('.player-item').forEach(item => {
+                item.style.background = "";
+                item.style.color = "";
+            });
+            return;
+        }
+
+        // Get tap position relative to pitch
+        const rect = pitch.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        console.log('Adding player at position:', x, y, '(', (x/rect.width*100).toFixed(1), '%, ', (y/rect.height*100).toFixed(1), '%)');
+
+        // Remove from bench if coming from there
+        subsOnBench = subsOnBench.filter(p => String(p.id) !== String(draggedPlayer.id));
+        document.querySelectorAll('.sub-player').forEach(subDiv => {
+            if (String(subDiv.dataset.id) === String(draggedPlayer.id)) {
+                subDiv.remove();
+            }
+        });
+        
+        // Hide player from available players sidebar
+        document.querySelectorAll('.player-item').forEach(item => {
+            if (String(item.dataset.id) === String(draggedPlayer.id)) {
+                item.style.display = 'none';
+            }
+        });
+
+        // Create player on pitch
+        addPlayerToPitch(draggedPlayer, x, y);
+        draggedPlayer = null;
+        
+        // Clear selections
+        document.querySelectorAll('.player-item').forEach(item => {
+            item.style.background = "";
+            item.style.color = "";
+        });
+    });
+
+    function addPlayerToPitch(player, x, y) {
+        const pitch = document.getElementById('pitch');
+        if (!pitch) {
+            console.error('Pitch element not found!');
+            return;
+        }
+        
+        const pitchRect = pitch.getBoundingClientRect();
+        
+        // Convert pixel position to percentage if needed
+        let xPercent, yPercent;
+        if (player.xPercent !== undefined && player.yPercent !== undefined) {
+            // Already have percentage values
+            xPercent = player.xPercent;
+            yPercent = player.yPercent;
+        } else if (x !== undefined && y !== undefined) {
+            // Convert from pixels to percentage
+            xPercent = (x / pitchRect.width) * 100;
+            yPercent = (y / pitchRect.height) * 100;
+        } else {
+            // Fallback to center if no position provided
+            console.warn('No position provided for player, using center');
+            xPercent = 50;
+            yPercent = 50;
+        }
+        
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-on-pitch';
+        playerDiv.style.left = `${xPercent}%`;
+        playerDiv.style.top = `${yPercent}%`;
+        playerDiv.innerHTML = `<div class="player-name">${player.name.split(' ')[0]}</div>`;
+        playerDiv.dataset.id = player.id;
+        playerDiv.dataset.xPercent = xPercent;
+        playerDiv.dataset.yPercent = yPercent;
+        
+        console.log('✅ Player added:', player.name, 'at', xPercent.toFixed(1) + '%', yPercent.toFixed(1) + '%', 'element:', playerDiv);
+        
+        // Make draggable on pitch
+        playerDiv.draggable = true;
+        playerDiv.addEventListener('dragstart', (e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            playerDiv.style.opacity = '0.5';
+            playerDiv.dataset.draggingOnPitch = 'true';
+        });
+
+        playerDiv.addEventListener('dragend', (e) => {
+            playerDiv.style.opacity = '1';
+            delete playerDiv.dataset.draggingOnPitch;
+            
+            // Update percentage position
+            const pitchRect = pitch.getBoundingClientRect();
+            const playerRect = playerDiv.getBoundingClientRect();
+            const centerX = playerRect.left + playerRect.width / 2 - pitchRect.left;
+            const centerY = playerRect.top + playerRect.height / 2 - pitchRect.top;
+            playerDiv.dataset.xPercent = (centerX / pitchRect.width) * 100;
+            playerDiv.dataset.yPercent = (centerY / pitchRect.height) * 100;
+        });
+        
+        // Touch events for mobile
+        let touchStartX, touchStartY, touchOffsetX, touchOffsetY;
+        
+        playerDiv.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            const rect = playerDiv.getBoundingClientRect();
+            touchOffsetX = touch.clientX - rect.left;
+            touchOffsetY = touch.clientY - rect.top;
+            playerDiv.style.opacity = '0.7';
+            playerDiv.style.zIndex = '1000';
+        });
+        
+        playerDiv.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const pitchRect = pitch.getBoundingClientRect();
+            const x = touch.clientX - pitchRect.left;
+            const y = touch.clientY - pitchRect.top;
+            const xPercent = (x / pitchRect.width) * 100;
+            const yPercent = (y / pitchRect.height) * 100;
+            
+            playerDiv.style.left = `${xPercent}%`;
+            playerDiv.style.top = `${yPercent}%`;
+        });
+        
+        playerDiv.addEventListener('touchend', (e) => {
+            playerDiv.style.opacity = '1';
+            playerDiv.style.zIndex = '10';
+            
+            // Update percentage position
+            const pitchRect = pitch.getBoundingClientRect();
+            const playerRect = playerDiv.getBoundingClientRect();
+            const centerX = playerRect.left + playerRect.width / 2 - pitchRect.left;
+            const centerY = playerRect.top + playerRect.height / 2 - pitchRect.top;
+            const xPercent = (centerX / pitchRect.width) * 100;
+            const yPercent = (centerY / pitchRect.height) * 100;
+            playerDiv.dataset.xPercent = xPercent;
+            playerDiv.dataset.yPercent = yPercent;
+            
+            // Update position in array
+            const id = playerDiv.dataset.id;
+            const p = playersOnPitch.find(pl => String(pl.id) === String(id));
+            if (p) {
+                p.xPercent = xPercent;
+                p.yPercent = yPercent;
+            }
+        });
+
+        // Double click to remove - move to bench
+        playerDiv.addEventListener('dblclick', () => {
+            playerDiv.remove();
+            const removedPlayer = playersOnPitch.find(p => String(p.id) === String(player.id));
+            playersOnPitch = playersOnPitch.filter(p => String(p.id) !== String(player.id));
+            
+            // Show player back in available players sidebar
+            document.querySelectorAll('.player-item').forEach(item => {
+                if (String(item.dataset.id) === String(player.id)) {
+                    item.style.display = '';
+                }
+            });
+            
+            if (removedPlayer && !subsOnBench.find(p => String(p.id) === String(removedPlayer.id))) {
+                addPlayerToBench(removedPlayer);
+            }
+        });
+
+        pitch.appendChild(playerDiv);
+        
+        // Store with percentage positions (already calculated above)
+        playersOnPitch.push({ ...player, xPercent, yPercent });
+    }
+
+    function addPlayerToBench(player) {
+        // Check if player already on bench
+        if (subsOnBench.find(p => String(p.id) === String(player.id))) {
+            return; // Already on bench, don't add duplicate
+        }
+        
+        const bench = document.getElementById('subsBench');
+        const subDiv = document.createElement('div');
+        subDiv.className = 'sub-player';
+        subDiv.draggable = true;
+        subDiv.dataset.id = player.id;
+        subDiv.innerHTML = `${player.name.split(' ')[0]} (${player.position || 'N/A'})`;
+        
+        subDiv.addEventListener('dragstart', (e) => {
+            draggedPlayer = player;
+            subDiv.style.opacity = '0.5';
+        });
+        
+        subDiv.addEventListener('dragend', (e) => {
+            subDiv.style.opacity = '1';
+        });
+        
+        // Double click to remove from bench
+        subDiv.addEventListener('dblclick', () => {
+            subDiv.remove();
+            subsOnBench = subsOnBench.filter(p => String(p.id) !== String(player.id));
+            
+            // Show player back in available players list
+            document.querySelectorAll('.player-item').forEach(item => {
+                if (String(item.dataset.id) === String(player.id)) {
+                    item.style.display = '';
+                }
+            });
+        });
+        
+        bench.appendChild(subDiv);
+        subsOnBench.push(player);
+        
+        // Hide player from available players list
+        document.querySelectorAll('.player-item').forEach(item => {
+            if (String(item.dataset.id) === String(player.id)) {
+                item.style.display = 'none';
+            }
+        });
+    }
+    
+    function addSubFromSidebar() {
+        // Get players not already on pitch or bench
+        const usedPlayerIds = new Set([
+            ...playersOnPitch.map(p => String(p.id)),
+            ...subsOnBench.map(p => String(p.id))
+        ]);
+        
+        const availablePlayers = allPlayers.filter(p => !usedPlayerIds.has(String(p.id)));
+        
+        if (availablePlayers.length === 0) {
+            alert('All players are already on pitch or bench!');
+            return;
+        }
+        
+        // Add all remaining players to bench
+        availablePlayers.forEach(player => {
+            addPlayerToBench(player);
+        });
+    }
+
+    function clearPitch() {
+        document.querySelectorAll('.player-on-pitch').forEach(p => p.remove());
+        document.querySelectorAll('.sub-player').forEach(p => p.remove());
+        
+        // Show all players back in "Not Playing" list
+        document.querySelectorAll('.player-item').forEach(item => {
+            item.style.display = '';
+        });
+        
+        playersOnPitch = [];
+        subsOnBench = [];
+        matchFormations[currentFormationIndex].players = [];
+        matchFormations[currentFormationIndex].subs = [];
+    }
+
+    function changeFormation() {
+        // Save current formation and subs
+        matchFormations[currentFormationIndex].players = [...playersOnPitch];
+        matchFormations[currentFormationIndex].subs = [...subsOnBench];
+        
+        // Clear display
+        document.querySelectorAll('.player-on-pitch').forEach(p => p.remove());
+        document.querySelectorAll('.sub-player').forEach(p => p.remove());
+        
+        // Show all players back in "Not Playing" list before loading new formation
+        document.querySelectorAll('.player-item').forEach(item => {
+            item.style.display = '';
+        });
+        
+        // Load selected formation
+        currentFormationIndex = parseInt(document.getElementById('formationSelect').value);
+        
+        // Clear arrays first
+        playersOnPitch = [];
+        subsOnBench = [];
+        
+        // Render saved formation with percentage positions
+        const pitchRect = pitch.getBoundingClientRect();
+        matchFormations[currentFormationIndex].players.forEach(player => {
+            // Convert percentage back to pixels for addPlayerToPitch
+            const x = player.xPercent !== undefined ? (player.xPercent / 100) * pitchRect.width : player.x || pitchRect.width / 2;
+            const y = player.yPercent !== undefined ? (player.yPercent / 100) * pitchRect.height : player.y || pitchRect.height / 2;
+            addPlayerToPitch(player, x, y);
+        });
+        
+        matchFormations[currentFormationIndex].subs.forEach(player => {
+            addPlayerToBench(player);
+        });
+    }
+    
+    function addFormation() {
+        // Save current first
+        matchFormations[currentFormationIndex].players = [...playersOnPitch];
+        matchFormations[currentFormationIndex].subs = [...subsOnBench];
+        
+        // Auto-generate formation name based on count (Formation 1, Formation 2, etc.)
+        const formationNumber = matchFormations.length;
+        const formationName = `Formation ${formationNumber}`;
+        
+        // Create new formation by COPYING the current lineup
+        const newFormation = {
+            name: formationName,
+            players: JSON.parse(JSON.stringify(playersOnPitch)), // Deep copy
+            subs: JSON.parse(JSON.stringify(subsOnBench)) // Deep copy
+        };
+        
+        matchFormations.push(newFormation);
+        currentFormationIndex = matchFormations.length - 1;
+        
+        // Update dropdown
+        updateFormationDropdown();
+        
+        // Keep current players on display (since we copied them)
+        // No need to clear - they're already showing
+    }
+    
+    function removeFormation() {
+        if (matchFormations.length <= 1) {
+            alert('Cannot remove the last formation!');
+            return;
+        }
+        
+        matchFormations.splice(currentFormationIndex, 1);
+        currentFormationIndex = Math.max(0, currentFormationIndex - 1);
+        
+        updateFormationDropdown();
+        changeFormation();
+    }
+    
+    function updateFormationDropdown() {
+        const select = document.getElementById('formationSelect');
+        select.innerHTML = '';
+        matchFormations.forEach((formation, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = formation.name || `Formation ${index + 1}`;
+            if (index === currentFormationIndex) option.selected = true;
+            select.appendChild(option);
+        });
+    }
+    
+    function renameFormation() {
+        const newName = prompt('Enter formation name (e.g., 0-15 mins):', matchFormations[currentFormationIndex].name);
+        if (newName && newName.trim()) {
+            matchFormations[currentFormationIndex].name = newName.trim();
+            updateFormationDropdown();
+        }
+    }
+    
+    function toggleMore() {
+        const secondary = document.getElementById('secondaryControls');
+        const btn = event.target;
+        if (secondary.classList.contains('collapsed')) {
+            secondary.classList.remove('collapsed');
+            btn.textContent = '▲ Less Options';
+        } else {
+            secondary.classList.add('collapsed');
+            btn.textContent = '▼ More Options';
+        }
+    }
+    
+    function hideAvailablePlayers() {
+        const sidebar = document.getElementById('playersSidebar');
+        const playersList = document.getElementById('availablePlayersList');
+        if (sidebar && playersList) {
+            playersList.style.display = 'none';
+            const message = document.createElement('p');
+            message.style.cssText = 'color: #7f8c8d; text-align: center; font-size: 13px;';
+            message.innerHTML = 'Players shown on pitch and bench.<br><button onclick="showAvailablePlayers()" class="btn" style="margin-top: 10px; padding: 6px 12px; font-size: 12px;">Show All Players</button>';
+            playersList.parentNode.appendChild(message);
+        }
+    }
+    
+    function showAvailablePlayers() {
+        const playersList = document.getElementById('availablePlayersList');
+        const sidebar = document.getElementById('playersSidebar');
+        if (playersList) {
+            playersList.style.display = 'block';
+            // Remove the message
+            const message = sidebar.querySelector('p');
+            if (message) message.remove();
+        }
+    }
+
+    function saveMatch() {
+        console.log('saveMatch called');
+        console.log('loadedMatchName:', loadedMatchName);
+        console.log('loadedMatchId:', loadedMatchId);
+        
+        // Save current formation first
+        matchFormations[currentFormationIndex].players = [...playersOnPitch];
+        matchFormations[currentFormationIndex].subs = [...subsOnBench];
+        
+        console.log('matchFormations:', matchFormations);
+        
+        // Check if any formations exist
+        const hasFormations = matchFormations.some(f => f.players.length > 0);
+        if (!hasFormations) {
+            alert('Add players to at least one formation!');
+            return;
+        }
+        
+        // Save directly without confirmation
+        confirmSave();
+    }
+    
+    function getQuickSaves() {
+        const saved = localStorage.getItem('quickSaveFormations');
+        return saved ? JSON.parse(saved) : [];
+    }
+    
+    function saveQuickSaves(quickSaves) {
+        localStorage.setItem('quickSaveFormations', JSON.stringify(quickSaves));
+    }
+    
+    function showQuickSaveModal() {
+        if (playersOnPitch.length === 0) {
+            alert('Add players to the pitch first!');
+            return;
+        }
+        
+        const name = prompt('Enter a name for this quick save formation:');
+        if (!name || name.trim() === '') return;
+        
+        const quickSaves = getQuickSaves();
+        
+        // Check if name exists
+        const existingIndex = quickSaves.findIndex(q => q.name === name.trim());
+        
+        const formationData = {
+            name: name.trim(),
+            players: playersOnPitch.map(p => ({
+                id: p.id,
+                name: p.name,
+                position: p.position,
+                xPercent: p.xPercent,
+                yPercent: p.yPercent
+            })),
+            subs: subsOnBench.map(s => ({
+                id: s.id,
+                name: s.name,
+                position: s.position
+            })),
+            savedAt: new Date().toISOString()
+        };
+        
+        if (existingIndex >= 0) {
+            if (confirm(`A quick save named "${name.trim()}" already exists. Overwrite it?`)) {
+                quickSaves[existingIndex] = formationData;
+                saveQuickSaves(quickSaves);
+                alert('⚡ Quick save updated!');
+            }
+        } else {
+            quickSaves.push(formationData);
+            saveQuickSaves(quickSaves);
+            alert('⚡ Quick save created!');
+        }
+    }
+    
+    function showQuickLoadModal() {
+        const quickSaves = getQuickSaves();
+        
+        if (quickSaves.length === 0) {
+            alert('No quick saves yet! Use Quick Save to create one.');
+            return;
+        }
+        
+        let html = '<div style="max-height: 400px; overflow-y: auto;">';
+        html += '<h3 style="margin-bottom: 15px;">⚡ Quick Load Formations</h3>';
+        html += '<div style="display: flex; flex-direction: column; gap: 10px;">';
+        
+        quickSaves.forEach((save, index) => {
+            const date = new Date(save.savedAt).toLocaleString();
+            html += `
+                <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; border: 2px solid #dee2e6;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <strong style="color: #2c3e50; font-size: 14px;">${save.name}</strong>
+                        <button onclick="deleteQuickSave(${index})" class="btn" style="background: #e74c3c; padding: 4px 8px; font-size: 11px;">🗑️</button>
+                    </div>
+                    <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 8px;">
+                        ${save.players.length} players • ${save.subs.length} subs<br>
+                        Saved: ${date}
+                    </div>
+                    <button onclick="loadQuickSave(${index})" class="btn" style="background: #27ae60; width: 100%; padding: 8px;">⚡ Load</button>
+                </div>
+            `;
+        });
+        
+        html += '</div></div>';
+        html += '<button onclick="closeQuickLoadModal()" class="btn" style="margin-top: 15px; width: 100%;">Close</button>';
+        
+        const modalDiv = document.createElement('div');
+        modalDiv.id = 'quickLoadModal';
+        modalDiv.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 10000; max-width: 500px; width: 90%;';
+        modalDiv.innerHTML = html;
+        
+        const overlay = document.createElement('div');
+        overlay.id = 'quickLoadOverlay';
+        overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999;';
+        overlay.onclick = closeQuickLoadModal;
+        
+        document.body.appendChild(overlay);
+        document.body.appendChild(modalDiv);
+    }
+    
+    function closeQuickLoadModal() {
+        const modal = document.getElementById('quickLoadModal');
+        const overlay = document.getElementById('quickLoadOverlay');
+        if (modal) modal.remove();
+        if (overlay) overlay.remove();
+    }
+    
+    function loadQuickSave(index) {
+        const quickSaves = getQuickSaves();
+        if (index < 0 || index >= quickSaves.length) return;
+        
+        const save = quickSaves[index];
+        
+        try {
+            // Clear current
+            document.querySelectorAll('.player-on-pitch').forEach(p => p.remove());
+            document.querySelectorAll('.sub-player').forEach(p => p.remove());
+            playersOnPitch = [];
+            subsOnBench = [];
+            
+            // Load quick save with percentage positions
+            const pitchRect = pitch.getBoundingClientRect();
+            save.players.forEach(player => {
+                // Convert percentage back to pixels for addPlayerToPitch
+                const x = player.xPercent !== undefined ? (player.xPercent / 100) * pitchRect.width : player.x || pitchRect.width / 2;
+                const y = player.yPercent !== undefined ? (player.yPercent / 100) * pitchRect.height : player.y || pitchRect.height / 2;
+                addPlayerToPitch(player, x, y);
+            });
+            
+            save.subs.forEach(player => {
+                addPlayerToBench(player);
+            });
+            
+            // Update current formation
+            matchFormations[currentFormationIndex].players = [...playersOnPitch];
+            matchFormations[currentFormationIndex].subs = [...subsOnBench];
+            
+            closeQuickLoadModal();
+            alert(`⚡ "${save.name}" loaded!`);
+        } catch (error) {
+            alert('Error loading quick save: ' + error.message);
+        }
+    }
+    
+    function deleteQuickSave(index) {
+        const quickSaves = getQuickSaves();
+        if (index < 0 || index >= quickSaves.length) return;
+        
+        const save = quickSaves[index];
+        if (confirm(`Delete quick save "${save.name}"?`)) {
+            quickSaves.splice(index, 1);
+            saveQuickSaves(quickSaves);
+            closeQuickLoadModal();
+            
+            // Reopen if there are still saves
+            if (quickSaves.length > 0) {
+                showQuickLoadModal();
+            }
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('formationModal').style.display = 'none';
+    }
+
+    async function confirmSave(isUpdate = false) {
+        let name;
+        
+        if (loadedMatchName) {
+            // Use the loaded match name
+            name = loadedMatchName;
+        } else {
+            // Generate a default name based on current date if no match name
+            const now = new Date();
+            name = `Formation ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+        }
+
+        // Save current formation first
+        matchFormations[currentFormationIndex].players = [...playersOnPitch];
+        matchFormations[currentFormationIndex].subs = [...subsOnBench];
+
+        const data = JSON.stringify({
+            formations: matchFormations
+        });
+
+        try {
+            const requestBody = { name, data };
+            
+            // If we have loadedFormationId, we're updating an existing formation
+            if (loadedFormationId) {
+                requestBody.id = loadedFormationId;
+                console.log('Updating existing formation:', loadedFormationId);
+            }
+            
+            // If we have loadedMatchId, we're linking to a match
+            if (loadedMatchId) {
+                requestBody.match_id = loadedMatchId;
+                console.log('Linking to match:', loadedMatchId);
+            }
+            
+            console.log('Saving formation:', requestBody);
+            
+            const response = await fetch('/formations/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            const result = await response.json();
+            console.log('Save result:', result);
+            
+            if (result.success) {
+                // Update loadedFormationId if this was a new formation
+                if (!loadedFormationId && result.id) {
+                    loadedFormationId = result.id;
+                    console.log('Formation saved with ID:', loadedFormationId);
+                }
+                
+                closeModal();
+                document.getElementById('formationName').value = "";
+                
+                // Show success notification
+                showSaveNotification();
+            } else {
+                alert('Failed to save: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Save error:', error);
+            alert('Error saving formation: ' + error.message);
+        }
+    }
+
+    function showSaveNotification() {
+        const notification = document.getElementById('saveNotification');
+        notification.style.display = 'block';
+        
+        // Hide after 3 seconds
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 3000);
+    }
+
+    function loadFormationModal() {
+        window.location.href = '/formations';
+    }
+
+    function displayOpponentName(matchName) {
+        // Extract opponent from match name (format: "2024-01-15 - vs Opponent Name")
+        const parts = matchName.split(' - vs ');
+        if (parts.length > 1) {
+            const opponentName = parts[1].trim();
+            document.getElementById('opponentName').textContent = opponentName;
+            document.getElementById('matchOpponent').style.display = 'block';
+        }
+    }
+
+    // Load formation from sessionStorage if available
+    window.addEventListener('DOMContentLoaded', () => {
+        // Check URL parameters for match_id and match_name
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlMatchId = urlParams.get('match_id');
+        const urlMatchName = urlParams.get('match_name');
+        
+        if (urlMatchId && urlMatchName) {
+            // Creating formation for a new match
+            loadedMatchId = parseInt(urlMatchId);
+            loadedMatchName = urlMatchName;
+            console.log('Creating formation for match:', urlMatchId, urlMatchName);
+            
+            // Display opponent name
+            displayOpponentName(urlMatchName);
+        }
+        
+        // Check for formation data from server (for editing existing formations)
+        console.log('Checking for formation data...');
+        
+        {% if formation %}
+        console.log('Formation exists, attempting to load...');
+        let serverFormation = null;
+        let serverMatchId = null;
+        let serverMatchName = null;
+        
+        try {
+            // Load formation data directly as JavaScript object
+            serverFormation = {{ formation.data | tojson | safe }};
+            serverMatchId = {{ formation.id }};
+            serverMatchName = {{ formation.name | tojson | safe }};
+            
+            console.log('Formation loaded successfully');
+            console.log('Formation data:', serverFormation);
+            console.log('Formation ID:', serverMatchId);
+            console.log('Formation Name:', serverMatchName);
+        } catch (e) {
+            console.error('Error loading formation variables:', e);
+        }
+        
+        if (serverFormation && serverMatchId && serverMatchName) {
+            loadedFormationId = serverMatchId;  // Store formation ID for updates
+            loadedMatchName = serverMatchName;
+            
+            // Display opponent name
+            displayOpponentName(serverMatchName);
+            
+            try {
+                const data = typeof serverFormation === 'string' ? JSON.parse(serverFormation) : serverFormation;
+                
+                // Load formations data
+                if (data.formations && Array.isArray(data.formations)) {
+                    matchFormations = data.formations;
+                    
+                    // Rename first formation to "Starting Lineup" if it's the old default name
+                    if (matchFormations.length > 0 && matchFormations[0].name === 'Formation 1') {
+                        matchFormations[0].name = 'Starting Lineup';
+                    }
+                    
+                    currentFormationIndex = 0;
+                    
+                    updateFormationDropdown();
+                    
+                    // Load first formation
+                    if (matchFormations.length > 0 && matchFormations[0].players) {
+                        const pitchRect = pitch.getBoundingClientRect();
+                        matchFormations[0].players.forEach(player => {
+                            const x = player.xPercent !== undefined ? (player.xPercent / 100) * pitchRect.width : player.x || pitchRect.width / 2;
+                            const y = player.yPercent !== undefined ? (player.yPercent / 100) * pitchRect.height : player.y || pitchRect.height / 2;
+                            addPlayerToPitch(player, x, y);
+                            
+                            // Hide this player from available list
+                            document.querySelectorAll('.player-item').forEach(item => {
+                                if (String(item.dataset.id) === String(player.id)) {
+                                    item.style.display = 'none';
+                                }
+                            });
+                        });
+                    }
+                    
+                    if (matchFormations.length > 0 && matchFormations[0].subs) {
+                        matchFormations[0].subs.forEach(player => {
+                            addPlayerToBench(player);
+                        });
+                    }
+                }
+                
+                // Don't hide the entire sidebar - players on pitch are already hidden individually
+            } catch (error) {
+                console.error('Error loading formation:', error);
+            }
+            return;
+        }
+        {% else %}
+        console.log('No formation to load');
+        {% endif %}
+        
+        const savedFormation = sessionStorage.getItem('loadFormation');
+        if (savedFormation) {
+            try {
+                const data = JSON.parse(savedFormation);
+                
+                // Check if it's the new format with multiple formations
+                if (data.formations && Array.isArray(data.formations)) {
+                    // Load all formations
+                    matchFormations = data.formations;
+                    currentFormationIndex = 0;
+                    
+                    // Update dropdown
+                    updateFormationDropdown();
+                    
+                    // Load first formation
+                    if (matchFormations.length > 0 && matchFormations[0].players) {
+                        const pitchRect = pitch.getBoundingClientRect();
+                        matchFormations[0].players.forEach(player => {
+                            const x = player.xPercent !== undefined ? (player.xPercent / 100) * pitchRect.width : player.x || pitchRect.width / 2;
+                            const y = player.yPercent !== undefined ? (player.yPercent / 100) * pitchRect.height : player.y || pitchRect.height / 2;
+                            addPlayerToPitch(player, x, y);
+                        });
+                    }
+                    
+                    if (matchFormations.length > 0 && matchFormations[0].subs) {
+                        matchFormations[0].subs.forEach(player => {
+                            addPlayerToBench(player);
+                        });
+                    }
+                    
+                    // Hide available players sidebar since formation is loaded
+                    hideAvailablePlayers();
+                } else {
+                    // Old format - just player positions
+                    const pitchRect = pitch.getBoundingClientRect();
+                    data.forEach(player => {
+                        const x = player.xPercent !== undefined ? (player.xPercent / 100) * pitchRect.width : player.x || pitchRect.width / 2;
+                        const y = player.yPercent !== undefined ? (player.yPercent / 100) * pitchRect.height : player.y || pitchRect.height / 2;
+                        addPlayerToPitch(player, x, y);
+                    });
+                    
+                    // Hide available players sidebar since formation is loaded
+                    hideAvailablePlayers();
+                }
+                
+                sessionStorage.removeItem('loadFormation');
+            } catch (error) {
+                console.error('Error loading formation:', error);
+            }
+        } else {
+            // Auto-load favorite formation if available
+            const favorite = localStorage.getItem('favoriteFormation');
+            if (favorite) {
+                try {
+                    const favoriteData = JSON.parse(favorite);
+                    const pitchRect = pitch.getBoundingClientRect();
+                    favoriteData.players.forEach(player => {
+                        const x = player.xPercent !== undefined ? (player.xPercent / 100) * pitchRect.width : player.x || pitchRect.width / 2;
+                        const y = player.yPercent !== undefined ? (player.yPercent / 100) * pitchRect.height : player.y || pitchRect.height / 2;
+                        addPlayerToPitch(player, x, y);
+                    });
+                    favoriteData.subs.forEach(player => {
+                        addPlayerToBench(player);
+                    });
+                    console.log('Auto-loaded favorite formation');
+                } catch (error) {
+                    console.error('Error auto-loading favorite:', error);
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

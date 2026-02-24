@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Saved Formations - Under-12 Football Manager{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>📋 Saved Formations</h2>
+    <p style="color: #7f8c8d; margin-bottom: 20px;">Load previously saved team formations</p>
+    
+    {% if formations %}
+    <table>
+        <thead>
+            <tr>
+                <th>Formation Name</th>
+                <th>Created</th>
+                <th style="width: 200px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for formation in formations %}
+            <tr>
+                <td><strong>{{ formation.name }}</strong></td>
+                <td>{{ formation.created_at[:16] }}</td>
+                <td>
+                    <button onclick="loadFormation({{ formation.id }})" class="btn" style="padding: 6px 12px; font-size: 12px;">
+                        📂 Load
+                    </button>
+                    <button onclick="viewGameDay({{ formation.id }})" class="btn" style="padding: 6px 12px; font-size: 12px; background: #9b59b6;">
+                        🖨️ Game Day View
+                    </button>
+                    <form method="POST" action="/formations/{{ formation.id }}/delete" style="display: inline;">
+                        <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="return confirm('Delete this formation?')">
+                            🗑️ Delete
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="text-align: center; color: #7f8c8d; padding: 40px;">
+        No formations saved yet. Create one on the <a href="/pitch">pitch page</a>!
+    </p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function loadFormation(id) {
+        try {
+            const response = await fetch(`/formations/${id}/load`);
+            const result = await response.json();
+            
+            if (result.success) {
+                // Store formation data, ID, and name in sessionStorage
+                sessionStorage.setItem('loadFormation', result.data);
+                sessionStorage.setItem('loadedMatchId', id);
+                sessionStorage.setItem('loadedMatchName', result.name);
+                window.location.href = '/pitch';
+            } else {
+                alert('Failed to load formation');
+            }
+        } catch (error) {
+            alert('Error loading formation: ' + error.message);
+        }
+    }
+    
+    function viewGameDay(id) {
+        window.location.href = `/formations/${id}/gameday`;
+    }
+</script>
+{% endblock %}

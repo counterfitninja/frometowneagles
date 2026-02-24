@@ -1,0 +1,20 @@
+# Deny access to database files
+<FilesMatch "\.(db|sqlite|sqlite3)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Deny access to Python files
+<FilesMatch "\.(py|pyc|pyo)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Deny access to config and log files
+<FilesMatch "\.(env|log|ini|conf)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Prevent directory listing
+Options -Indexes

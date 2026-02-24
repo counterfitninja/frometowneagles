@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+
+{% block title %}Match Schedule - Under-12 Football Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .bulk-upload-section {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .match-card {
+        background: white;
+        border: 2px solid #dee2e6;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.3s;
+    }
+
+    .match-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+
+    .match-card.no-formation {
+        border-left: 5px solid #e74c3c;
+        background: #fff5f5;
+    }
+
+    .match-card.has-formation {
+        border-left: 5px solid #27ae60;
+        background: #f0fff4;
+    }
+
+    .match-info {
+        flex: 1;
+    }
+
+    .match-date {
+        font-size: 18px;
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+
+    .match-opponent {
+        font-size: 16px;
+        color: #3498db;
+        margin-bottom: 3px;
+    }
+
+    .match-location {
+        font-size: 14px;
+        color: #7f8c8d;
+    }
+
+    .match-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .status-badge {
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .status-badge.ready {
+        background: #27ae60;
+        color: white;
+    }
+
+    .status-badge.pending {
+        background: #e74c3c;
+        color: white;
+    }
+
+    textarea {
+        width: 100%;
+        min-height: 150px;
+        padding: 12px;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 14px;
+        resize: vertical;
+    }
+
+    .format-example {
+        background: #f8f9fa;
+        padding: 12px;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 13px;
+        margin-top: 10px;
+        border-left: 4px solid #3498db;
+    }
+
+    .summary-box {
+        background: #e3f2fd;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .summary-box .stat {
+        display: inline-block;
+        margin-right: 20px;
+        font-size: 14px;
+    }
+
+    .summary-box .stat strong {
+        color: #2c3e50;
+    }
+
+    @media (max-width: 768px) {
+        .match-card {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .match-actions {
+            margin-top: 15px;
+            width: 100%;
+            flex-direction: column;
+        }
+
+        .match-actions button {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <h2>📅 Match Schedule</h2>
+            <p style="color: #7f8c8d; margin: 0;">
+                {% if show_past %}Showing all matches{% else %}Showing upcoming matches{% endif %}
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button onclick="showAddMatchForm()" class="btn" style="background: #27ae60;">➕ Add Match</button>
+            {% if show_past %}
+            <a href="/matches" class="btn" style="background: #95a5a6; color: white; text-decoration: none;">📅 Upcoming Only</a>
+            {% else %}
+            <a href="/matches?show_past=true" class="btn" style="background: #95a5a6; color: white; text-decoration: none;">📜 Show All Matches</a>
+            {% endif %}
+            <a href="/matches/overview" class="btn" style="background: #667eea; color: white; text-decoration: none; padding: 12px 20px; font-size: 16px; font-weight: 600; border-radius: 8px; box-shadow: 0 2px 8px rgba(102,126,234,0.3);">
+                📋 View All Teams
+            </a>
+        </div>
+    </div>
+
+    <!-- Add Match Form -->
+    <div id="addMatchForm" style="display: none; background: #e3f2fd; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
+        <h3 style="color: #2c3e50; margin-bottom: 15px;">➕ Add New Match</h3>
+        <form method="POST" action="/matches/add">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label for="match_date">Match Date</label>
+                    <input type="date" id="match_date" name="match_date" required>
+                </div>
+                <div class="form-group">
+                    <label for="opponent">Opponent</label>
+                    <input type="text" id="opponent" name="opponent" placeholder="e.g., Arsenal U12" required>
+                </div>
+                <div class="form-group">
+                    <label for="location">Location</label>
+                    <input type="text" id="location" name="location" placeholder="e.g., Home Ground">
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-success">💾 Save Match</button>
+                <button type="button" onclick="hideAddMatchForm()" class="btn" style="background: #95a5a6;">❌ Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Edit Match Form -->
+    <div id="editMatchForm" style="display: none; background: #fff3cd; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #f39c12;">
+        <h3 style="color: #2c3e50; margin-bottom: 15px;">✏️ Edit Match</h3>
+        <form method="POST" action="/matches/edit" id="editForm">
+            <input type="hidden" id="edit_match_id" name="match_id">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label for="edit_match_date">Match Date</label>
+                    <input type="date" id="edit_match_date" name="match_date" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_opponent">Opponent</label>
+                    <input type="text" id="edit_opponent" name="opponent" placeholder="e.g., Arsenal U12" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_location">Location</label>
+                    <input type="text" id="edit_location" name="location" placeholder="e.g., Home Ground">
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-success">💾 Update Match</button>
+                <button type="button" onclick="hideEditMatchForm()" class="btn" style="background: #95a5a6;">❌ Cancel</button>
+            </div>
+        </form>
+    </div>
+                    <input type="text" id="opponent" name="opponent" placeholder="e.g., Arsenal U12" required>
+                </div>
+                <div class="form-group">
+                    <label for="location">Location</label>
+                    <input type="text" id="location" name="location" placeholder="e.g., Home Ground">
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-success">💾 Save Match</button>
+                <button type="button" onclick="hideAddMatchForm()" class="btn" style="background: #95a5a6;">❌ Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    {% if matches %}
+    <div class="summary-box">
+        <h3 style="color: #2c3e50; margin-bottom: 10px;">📊 Schedule Summary</h3>
+        <div class="stat">
+            <strong>Total Matches:</strong> {{ matches|length }}
+        </div>
+        <div class="stat">
+            <strong>With Formations:</strong> {{ matches|selectattr('formation_id')|list|length }}
+        </div>
+        <div class="stat">
+            <strong>Pending:</strong> <span style="color: #e74c3c; font-weight: bold;">{{ matches|rejectattr('formation_id')|list|length }}</span>
+        </div>
+    </div>
+
+    <h3 style="color: #2c3e50; margin-bottom: 15px;">
+        {% if show_past %}All Matches{% else %}Upcoming Matches{% endif %}
+    </h3>
+    
+    {% for match in matches %}
+    <div class="match-card {% if match.formation_id %}has-formation{% else %}no-formation{% endif %}" id="match-{{ match.id }}">
+        <div class="match-info">
+            <div class="match-date">📆 {{ match.match_date | ukdate }}</div>
+            <div class="match-opponent">⚽ vs {{ match.opponent }}</div>
+            <div class="match-location">📍 {{ match.location or 'TBD' }}</div>
+            {% if match.formation_name %}
+            <div style="margin-top: 8px; font-size: 13px; color: #27ae60;">
+                ✅ Formation: <strong>{{ match.formation_name }}</strong>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="match-actions">
+            {% if match.formation_id %}
+            <span class="status-badge ready">✅ Ready</span>
+            <a href="/formations/{{ match.formation_id }}/load" class="btn" style="background: #3498db;">📋 Edit Formation</a>
+            <a href="/formations/{{ match.formation_id }}/gameday" class="btn" style="background: #27ae60;">👁️ View</a>
+            {% else %}
+            <span class="status-badge pending">⚠️ No Formation</span>
+            <a href="/pitch?match_id={{ match.id }}&match_name={{ match.match_date }} - vs {{ match.opponent }}" class="btn" style="background: #667eea;">📋 Create Formation</a>
+            {% endif %}
+            <button onclick="editMatch({{ match.id }}, '{{ match.match_date }}', '{{ match.opponent }}', '{{ match.location or '' }}')" class="btn" style="background: #f39c12; padding: 8px 12px;">✏️</button>
+            <button onclick="deleteMatch({{ match.id }})" class="btn btn-danger" style="padding: 8px 12px;">🗑️</button>
+        </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: #95a5a6;">
+        <p style="font-size: 16px;">No matches scheduled yet.</p>
+        <p style="font-size: 14px; margin-top: 10px;">Use the bulk upload form below to add your matches.</p>
+    </div>
+    {% endif %}
+
+    <div class="bulk-upload-section" style="margin-top: 40px;">
+        <h3 style="color: #2c3e50; margin-bottom: 15px;">📤 Bulk Upload Matches</h3>
+        <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 10px;">
+            Enter matches one per line in the format: <code>YYYY-MM-DD | Opponent | Location</code>
+        </p>
+        
+        <textarea id="matchesInput" placeholder="2026-01-20 | Eagles FC | Home&#10;2026-01-27 | Lions United | Away&#10;2026-02-03 | Tigers SC | Home"></textarea>
+        
+        <div class="format-example">
+            <strong>Example:</strong><br>
+            2026-01-20 | Eagles FC | Home<br>
+            2026-01-27 | Lions United | Away<br>
+            2026-02-03 | Tigers SC | Home
+        </div>
+
+        <button onclick="uploadMatches()" class="btn btn-success" style="margin-top: 15px;">
+            📤 Upload Matches
+        </button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function uploadMatches() {
+    const matchesText = document.getElementById('matchesInput').value.trim();
+    
+    if (!matchesText) {
+        alert('Please enter at least one match!');
+        return;
+    }
+
+    try {
+        const response = await fetch('/matches/bulk-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ matches_text: matchesText })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            let message = `✅ Successfully added ${result.added} match(es)!`;
+            
+            if (result.errors.length > 0) {
+                message += '\n\n⚠️ Errors:\n' + result.errors.join('\n');
+            }
+            
+            alert(message);
+            
+            if (result.added > 0) {
+                location.reload();
+            }
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error uploading matches: ' + error.message);
+    }
+}
+
+function showAddMatchForm() {
+    document.getElementById('addMatchForm').style.display = 'block';
+    // Set default date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('match_date').value = today;
+}
+
+function hideAddMatchForm() {
+    document.getElementById('addMatchForm').style.display = 'none';
+}
+
+function editMatch(matchId, matchDate, opponent, location) {
+    // Hide add form if open
+    hideAddMatchForm();
+    
+    // Populate edit form
+    document.getElementById('edit_match_id').value = matchId;
+    document.getElementById('edit_match_date').value = matchDate;
+    document.getElementById('edit_opponent').value = opponent;
+    document.getElementById('edit_location').value = location;
+    
+    // Show edit form
+    document.getElementById('editMatchForm').style.display = 'block';
+    
+    // Scroll to form
+    document.getElementById('editMatchForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function hideEditMatchForm() {
+    document.getElementById('editMatchForm').style.display = 'none';
+}
+
+async function deleteMatch(matchId) {
+    if (!confirm('Delete this match?')) return;
+
+    try {
+        const response = await fetch(`/matches/${matchId}/delete`, {
+            method: 'POST'
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById(`match-${matchId}`).remove();
+            location.reload();
+        }
+    } catch (error) {
+        alert('Error deleting match: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

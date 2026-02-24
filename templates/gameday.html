@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Day - {{ formation_name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            background: white;
+        }
+
+        .no-print {
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .match-info {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .formations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .formation-card {
+            border: 2px solid #ecf0f1;
+            border-radius: 12px;
+            padding: 15px;
+            background: white;
+            page-break-inside: avoid;
+        }
+
+        .formation-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            text-align: center;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .mini-pitch {
+            position: relative;
+            background: linear-gradient(to right, #4a7c3a 0%, #5a8c4a 50%, #4a7c3a 100%);
+            border: 2px solid white;
+            border-radius: 8px;
+            height: 250px;
+            margin-bottom: 15px;
+        }
+
+        .pitch-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        .halfway-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 2px;
+            height: 100%;
+            background: rgba(255,255,255,0.5);
+        }
+
+        .center-circle {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 50%;
+            border-left: none;
+        }
+
+        .penalty-area {
+            position: absolute;
+            width: 75px;
+            height: 125px;
+            border: 2px solid rgba(255,255,255,0.5);
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            border-right: none;
+        }
+
+        .goal-area {
+            position: absolute;
+            width: 30px;
+            height: 60px;
+            border: 2px solid rgba(255,255,255,0.5);
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            border-right: none;
+        }
+
+        .mini-player {
+            position: absolute;
+            width: 35px;
+            height: 35px;
+            background: #667eea;
+            border: 2px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            line-height: 1.1;
+            word-wrap: break-word;
+            z-index: 10;
+            margin-left: -17.5px;
+            margin-top: -17.5px;
+        }
+
+        .subs-list {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .subs-title {
+            font-weight: bold;
+            color: #856404;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .sub-item {
+            padding: 5px;
+            font-size: 12px;
+            color: #2c3e50;
+            border-bottom: 1px solid #ffeaa7;
+        }
+
+        .sub-item:last-child {
+            border-bottom: none;
+        }
+
+        @media print {
+            .no-print {
+                display: none;
+            }
+
+            body {
+                padding: 10px;
+            }
+
+            .formations-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+
+            .formation-card {
+                border: 1px solid #000;
+            }
+
+            h1 {
+                font-size: 20px;
+                margin-bottom: 5px;
+            }
+
+            .match-info {
+                margin-bottom: 15px;
+                font-size: 12px;
+            }
+        }
+
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button onclick="window.print()" class="btn">🖨️ Print</button>
+        <button onclick="window.location.href='/matches'" class="btn" style="background: #95a5a6;">← Back to Matches</button>
+    </div>
+
+    <h1>⚽ Game Day: {{ formation_name }}</h1>
+    <div class="match-info">
+        Created: {{ created_at }}<br>
+        Under-12 Eagles | 9-a-side
+    </div>
+
+    <div class="formations-grid">
+        {% for formation in formations %}
+        <div class="formation-card">
+            <div class="formation-title">{{ formation.name }}</div>
+            
+            <div class="mini-pitch">
+                <div class="pitch-lines">
+                    <div class="halfway-line"></div>
+                    <div class="center-circle"></div>
+                    <div class="penalty-area"></div>
+                    <div class="goal-area"></div>
+                </div>
+                
+                {% for player in formation.players %}
+                <div class="mini-player" style="left: {{ (player.xPercent if player.xPercent is defined else player.x|default(50)) }}%; top: {{ (player.yPercent if player.yPercent is defined else player.y|default(50)) }}%;">
+                    {{ player.name.split(' ')[0] }}
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if formation.subs %}
+            <div class="subs-list">
+                <div class="subs-title">🪑 Substitutes</div>
+                {% for sub in formation.subs %}
+                <div class="sub-item">{{ sub.name }} ({{ sub.position }})</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

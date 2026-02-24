@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+
+{% block title %}Team Generator - Under-12 Football Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+    .generator-section {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .team-card {
+        background: #f8f9fa;
+        border: 2px solid #dee2e6;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 15px;
+    }
+
+    .team-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #667eea;
+    }
+
+    .team-title {
+        font-size: 20px;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+
+    .player-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .player-badge {
+        background: #667eea;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        text-align: center;
+    }
+
+    .player-badge.goalkeeper {
+        background: #f39c12;
+    }
+
+    .player-badge.sub {
+        background: #95a5a6;
+    }
+
+    .stats-box {
+        background: #e3f2fd;
+        border-radius: 8px;
+        padding: 15px;
+        margin-top: 20px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 10px;
+    }
+
+    .stat-item {
+        background: white;
+        padding: 12px;
+        border-radius: 8px;
+        border-left: 4px solid #667eea;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: #7f8c8d;
+        margin-bottom: 5px;
+    }
+
+    .stat-value {
+        font-size: 18px;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+
+    .generate-form {
+        display: flex;
+        gap: 15px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .generate-form .form-group {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    @media (max-width: 768px) {
+        .player-grid {
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        }
+
+        .generate-form {
+            flex-direction: column;
+        }
+
+        .generate-form .form-group {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>🎲 Team Generator</h2>
+    <p style="color: #7f8c8d; margin-bottom: 20px;">Automatically generate balanced teams for multiple games</p>
+
+    {% if error %}
+    <div style="background: #fee; border: 2px solid #c33; color: #c33; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <strong>⚠️ Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="generator-section">
+        <h3 style="color: #2c3e50; margin-bottom: 15px;">Generate Teams</h3>
+        <form method="POST" action="/team-generator/generate" class="generate-form">
+            <div class="form-group">
+                <label for="num_games">Number of Games</label>
+                <input type="number" id="num_games" name="num_games" min="1" max="20" value="{{ matches|length if matches else 4 }}" required>
+                {% if matches and matches|length > 0 %}
+                <small style="color: #27ae60; display: block; margin-top: 5px;">✓ {{ matches|length }} upcoming match(es) found</small>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label for="team_size">Team Size (includes subs)</label>
+                <input type="number" id="team_size" name="team_size" min="9" max="15" value="12" required>
+            </div>
+            <button type="submit" class="btn btn-success" style="flex: 0;">🎲 Generate Teams</button>
+        </form>
+        <p style="font-size: 12px; color: #7f8c8d; margin-top: 10px;">
+            ℹ️ Teams will include at least 1 goalkeeper. Algorithm ensures fair distribution of players across all games.
+        </p>
+    </div>
+
+    {% if teams %}
+    <div class="stats-box">
+        <h3 style="color: #2c3e50; margin-bottom: 10px;">📊 Generation Summary</h3>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-label">Total Players</div>
+                <div class="stat-value">{{ stats.total_players }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Games Generated</div>
+                <div class="stat-value">{{ stats.num_games }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Team Size</div>
+                <div class="stat-value">{{ stats.team_size }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Max Games Missed</div>
+                <div class="stat-value">{{ stats.max_games_missed }}</div>
+            </div>
+        </div>
+    </div>
+
+    {% for team in teams %}
+    <div class="team-card">
+        <div class="team-header">
+            <div class="team-title">⚽ Game {{ loop.index }} Team</div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div style="font-size: 14px; color: #7f8c8d;">
+                    {{ team.starters|length }} starters + {{ team.subs|length }} subs
+                </div>
+                <button onclick="saveTeamAsMatch({{ loop.index0 }})" class="btn" style="background: #27ae60; padding: 8px 16px; font-size: 13px;">
+                    💾 Save as Match
+                </button>
+            </div>
+        </div>
+
+        <div>
+            <h4 style="color: #2c3e50; margin-bottom: 10px; font-size: 16px;">Starting XI (9 players)</h4>
+            <div class="player-grid">
+                {% for player in team.starters %}
+                <div class="player-badge {% if player.position == 'GK' %}goalkeeper{% endif %}">
+                    {{ player.name }}
+                    {% if player.position == 'GK' %}🧤{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div style="margin-top: 15px;">
+            <h4 style="color: #2c3e50; margin-bottom: 10px; font-size: 16px;">Substitutes</h4>
+            <div class="player-grid">
+                {% for player in team.subs %}
+                <div class="player-badge sub">
+                    {{ player.name }}
+                    {% if player.position == 'GK' %}🧤{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if team.not_playing %}
+        <div style="margin-top: 15px; background: #fff3cd; padding: 12px; border-radius: 8px; border-left: 4px solid #ffc107;">
+            <h4 style="color: #856404; margin-bottom: 10px; font-size: 16px;">⏸️ Not Playing This Game</h4>
+            <div class="player-grid">
+                {% for player in team.not_playing %}
+                <div style="background: #fff; color: #856404; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1px solid #ffc107;">
+                    {{ player.name }}
+                    {% if player.position == 'GK' %}🧤{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <div style="margin-top: 20px;">
+        <button onclick="window.print()" class="btn" style="background: #3498db;">🖨️ Print Teams</button>
+        <button onclick="copyTeamsToClipboard()" class="btn" style="background: #9b59b6;">📋 Copy to Clipboard</button>
+    </div>
+    {% endif %}
+
+    {% if not teams %}
+    <div style="text-align: center; padding: 40px; color: #95a5a6;">
+        <p style="font-size: 16px;">No teams generated yet. Fill in the form above and click "Generate Teams".</p>
+        <p style="font-size: 14px; margin-top: 10px;">Make sure you have added players first in the <a href="/players">Players</a> section.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+console.log('Team generator page loaded');
+
+let generatedTeams = [];
+let availableMatches = [];
+
+{% if teams %}
+try {
+    generatedTeams = {{ teams | tojson | safe }};
+    console.log('Generated teams loaded:', generatedTeams.length);
+} catch (e) {
+    console.error('Error loading teams:', e);
+}
+{% endif %}
+
+{% if matches %}
+try {
+    availableMatches = {{ matches | tojson | safe }};
+    console.log('Available matches loaded:', availableMatches.length);
+} catch (e) {
+    console.error('Error loading matches:', e);
+}
+{% endif %}
+
+async function saveTeamAsMatch(teamIndex) {
+    if (!generatedTeams || teamIndex >= generatedTeams.length) {
+        alert('Team not found!');
+        return;
+    }
+
+    const team = generatedTeams[teamIndex];
+    
+    // Show match selection modal
+    showMatchSelectionModal(teamIndex, team);
+}
+
+function showMatchSelectionModal(teamIndex, team) {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+    
+    let modalContent = `
+        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+            <h3 style="margin-bottom: 20px; color: #2c3e50;">Save Team as Match Formation</h3>
+    `;
+    
+    if (availableMatches && availableMatches.length > 0) {
+        modalContent += `
+            <p style="color: #7f8c8d; margin-bottom: 15px;">Select a match from your schedule or enter a custom name:</p>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #2c3e50;">Choose Match:</label>
+                <select id="matchSelect" style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px;" onchange="updateMatchName()">
+                    <option value="">-- Custom Name --</option>
+        `;
+        
+        availableMatches.forEach(match => {
+            const displayName = `${match.match_date} - vs ${match.opponent} (${match.location || 'TBD'})`;
+            modalContent += `<option value="${match.id}" data-name="${displayName}">${displayName}</option>`;
+        });
+        
+        modalContent += `
+                </select>
+            </div>
+        `;
+    } else {
+        modalContent += `
+            <p style="color: #7f8c8d; margin-bottom: 15px;">No upcoming matches found. Enter a custom name or <a href="/matches">add matches</a> first.</p>
+        `;
+    }
+    
+    modalContent += `
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #2c3e50;">Match Name:</label>
+                <input type="text" id="matchNameInput" placeholder="e.g., vs Eagles - Jan 20" 
+                       value="Game ${teamIndex + 1} - ${new Date().toLocaleDateString()}"
+                       style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px;">
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="confirmSaveTeam(${teamIndex}, this)" class="btn btn-success" style="flex: 1;">💾 Save</button>
+                <button onclick="closeMatchModal()" class="btn btn-danger" style="flex: 1;">Cancel</button>
+            </div>
+        </div>
+    `;
+    
+    modal.innerHTML = modalContent;
+    modal.id = 'matchSelectionModal';
+    document.body.appendChild(modal);
+}
+
+function updateMatchName() {
+    const select = document.getElementById('matchSelect');
+    const input = document.getElementById('matchNameInput');
+    const selectedOption = select.options[select.selectedIndex];
+    
+    if (select.value && selectedOption.dataset.name) {
+        input.value = selectedOption.dataset.name;
+    }
+}
+
+function closeMatchModal() {
+    const modal = document.getElementById('matchSelectionModal');
+    if (modal) modal.remove();
+}
+
+async function confirmSaveTeam(teamIndex, buttonElement) {
+    const team = generatedTeams[teamIndex];
+    const matchSelect = document.getElementById('matchSelect');
+    const matchNameInput = document.getElementById('matchNameInput');
+    const matchName = matchNameInput.value.trim();
+    const selectedMatchId = matchSelect ? matchSelect.value : null;
+    
+    if (!matchName) {
+        alert('Please enter a match name!');
+        return;
+    }
+
+    // Create formation data with all players on pitch at default positions
+    const pitchWidth = 800; // Default pitch width for positioning
+    const pitchHeight = 500;
+    
+    // Position players in a basic formation
+    const positions = [
+        // GK
+        { x: 90, y: 50 },
+        // Defenders (3)
+        { x: 25, y: 25 }, { x: 25, y: 50 }, { x: 25, y: 75 },
+        // Midfielders (3)
+        { x: 50, y: 25 }, { x: 50, y: 50 }, { x: 50, y: 75 },
+        // Forwards (2)
+        { x: 75, y: 35 }, { x: 75, y: 65 }
+    ];
+
+    const players = team.starters.map((player, index) => ({
+        id: String(player.id),
+        name: player.name,
+        position: player.position,
+        xPercent: positions[index] ? positions[index].x : 50,
+        yPercent: positions[index] ? positions[index].y : 50
+    }));
+
+    const subs = team.subs.map(sub => ({
+        id: String(sub.id),
+        name: sub.name,
+        position: sub.position
+    }));
+
+    const formationData = {
+        formations: [{
+            name: 'Formation 1',
+            players: players,
+            subs: subs
+        }]
+    };
+
+    try {
+        const response = await fetch('/formations/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: matchName.trim(),
+                data: JSON.stringify(formationData)
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            // If a match was selected, link the formation to it
+            if (selectedMatchId) {
+                try {
+                    await fetch(`/matches/${selectedMatchId}/link-formation/${result.id}`, {
+                        method: 'POST'
+                    });
+                    
+                    // Remove the saved match from the availableMatches array
+                    const matchIndex = availableMatches.findIndex(m => m.id == selectedMatchId);
+                    if (matchIndex > -1) {
+                        availableMatches.splice(matchIndex, 1);
+                    }
+                } catch (linkError) {
+                    console.error('Error linking formation to match:', linkError);
+                }
+            }
+            
+            closeMatchModal();
+            
+            // Hide the save button for this team - find by team index
+            const teamCards = document.querySelectorAll('.team-card');
+            if (teamCards[teamIndex]) {
+                const saveButton = teamCards[teamIndex].querySelector('button[onclick*="saveTeamAsMatch"]');
+                if (saveButton) {
+                    saveButton.style.display = 'none';
+                    const savedBadge = document.createElement('span');
+                    savedBadge.className = 'status-badge';
+                    savedBadge.style.cssText = 'background: #27ae60; color: white; padding: 8px 16px; font-size: 13px;';
+                    savedBadge.textContent = '✅ Saved';
+                    saveButton.parentNode.appendChild(savedBadge);
+                }
+            }
+        } else {
+            alert('Failed to save match: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error saving match: ' + error.message);
+    }
+}
+
+function copyTeamsToClipboard() {
+    const teams = {{ teams | tojson | safe if teams else '[]' }};
+    if (!teams || teams.length === 0) {
+        alert('No teams to copy!');
+        return;
+    }
+
+    let text = '⚽ GENERATED TEAMS\n\n';
+    teams.forEach((team, index) => {
+        text += `GAME ${index + 1}\n`;
+        text += `Starting XI:\n`;
+        team.starters.forEach(player => {
+            text += `  • ${player.name}${player.position === 'GK' ? ' 🧤' : ''}\n`;
+        });
+        text += `\nSubstitutes:\n`;
+        team.subs.forEach(player => {
+            text += `  • ${player.name}${player.position === 'GK' ? ' 🧤' : ''}\n`;
+        });
+        text += '\n---\n\n';
+    });
+
+    navigator.clipboard.writeText(text).then(() => {
+        alert('✅ Teams copied to clipboard!');
+    }).catch(err => {
+        alert('Failed to copy: ' + err);
+    });
+}
+</script>
+{% endblock %}

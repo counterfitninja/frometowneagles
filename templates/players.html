@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Players - Under-12 Football Manager{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>👥 Player Management</h2>
+    
+    <form method="POST" action="/players/add" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+        <h3 style="margin-bottom: 15px;">Add New Player</h3>
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px; align-items: end;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="name">Player Name</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="position">Position</label>
+                <select id="position" name="position">
+                    <option value="GK">Goalkeeper</option>
+                    <option value="DEF">Defender</option>
+                    <option value="MID" selected>Midfielder</option>
+                    <option value="FWD">Forward</option>
+                </select>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="rating">Rating (1-5)</label>
+                <select id="rating" name="rating">
+                    <option value="1">⭐ 1</option>
+                    <option value="2">⭐⭐ 2</option>
+                    <option value="3" selected>⭐⭐⭐ 3</option>
+                    <option value="4">⭐⭐⭐⭐ 4</option>
+                    <option value="5">⭐⭐⭐⭐⭐ 5</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn btn-success">+ Add</button>
+        </div>
+    </form>
+    
+    {% if players %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Position</th>
+                <th>Rating</th>
+                <th style="width: 150px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for player in players %}
+            <tr>
+                <td><strong>{{ player.name }}</strong></td>
+                <td>{{ player.position }}</td>
+                <td>
+                    {% for i in range(player.rating) %}⭐{% endfor %}
+                </td>
+                <td>
+                    <button onclick="editPlayer({{ player.id }}, '{{ player.name }}', '{{ player.position }}', {{ player.rating }})" class="btn" style="padding: 6px 12px; font-size: 12px; background: #3498db;">
+                        ✏️ Edit
+                    </button>
+                    <form method="POST" action="/players/{{ player.id }}/delete" style="display: inline;">
+                        <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="return confirm('Delete {{ player.name }}?')">
+                            🗑️ Delete
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="text-align: center; color: #7f8c8d; padding: 40px;">
+        No players yet. Add your first player above!
+    </p>
+    {% endif %}
+</div>
+
+<div id="editModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%;">
+        <h3 style="margin-bottom: 20px;">Edit Player</h3>
+        <form method="POST" id="editForm">
+            <div class="form-group">
+                <label for="editName">Player Name</label>
+                <input type="text" id="editName" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="editPosition">Position</label>
+                <select id="editPosition" name="position">
+                    <option value="GK">Goalkeeper</option>
+                    <option value="DEF">Defender</option>
+                    <option value="MID">Midfielder</option>
+                    <option value="FWD">Forward</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="editRating">Rating (1-5)</label>
+                <select id="editRating" name="rating">
+                    <option value="1">⭐ 1</option>
+                    <option value="2">⭐⭐ 2</option>
+                    <option value="3">⭐⭐⭐ 3</option>
+                    <option value="4">⭐⭐⭐⭐ 4</option>
+                    <option value="5">⭐⭐⭐⭐⭐ 5</option>
+                </select>
+            </div>
+            
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn btn-success">Save Changes</button>
+                <button type="button" onclick="closeEditModal()" class="btn btn-danger">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function editPlayer(id, name, position, rating) {
+    document.getElementById('editName').value = name;
+    document.getElementById('editPosition').value = position;
+    document.getElementById('editRating').value = rating;
+    document.getElementById('editForm').action = `/players/${id}/edit`;
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,147 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PANEL",
+    "meta": {
+        "version": "PLCN_v3",
+        "update_url": null
+    },
+    "exported_at": "2026-02-24T00:00:00+00:00",
+    "name": "Frome Town Eagles",
+    "author": "dave.bird@outlook.com",
+    "uuid": "c7f1e2a3-b4d5-4f86-9123-456789abcdef",
+    "description": "Football team management app for player tracking, match scheduling, formations, and team generation. Flask + SQLite + PWA.",
+    "image": null,
+    "tags": [],
+    "features": [],
+    "docker_images": {
+        "Python3.14": "ghcr.io/parkervcp/yolks:python_3.14"
+    },
+    "file_denylist": [],
+    "startup_commands": {
+        "default": "export PATH=/home/container/.local/bin:$PATH; git config --global --add safe.directory /home/container 2>/dev/null; if [[ -d .git ]] && [[ \"{{AUTO_UPDATE}}\" == \"1\" ]]; then echo '--- Auto-update: pulling latest ---'; export GIT_TERMINAL_PROMPT=0; _ADDR=\"{{GIT_ADDRESS}}\"; if [[ -n \"{{ACCESS_TOKEN}}\" ]] && [[ -n \"{{USERNAME}}\" ]]; then _ADDR=\"https://{{USERNAME}}:{{ACCESS_TOKEN}}@$(echo \"{{GIT_ADDRESS}}\" | cut -d/ -f3-)\"; fi; if ! git remote get-url origin >/dev/null 2>&1; then echo 'No remote found, adding origin...'; git remote add origin \"${_ADDR}\"; else git remote set-url origin \"${_ADDR}\"; fi; _BRANCH=\"{{BRANCH}}\"; _BRANCH=\"${_BRANCH:-main}\"; git fetch --all && git reset --hard \"origin/${_BRANCH}\" && echo '--- Update complete ---' || echo '--- Update FAILED ---'; fi; if [[ -f /home/container/{{REQUIREMENTS_FILE}} ]]; then pip install -U --prefix .local -r {{REQUIREMENTS_FILE}}; fi; find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true; bash startup.sh"
+    },
+    "config": {
+        "files": "{}",
+        "startup": "{\n    \"done\": [\n        \"Listening at: http\",\n        \"Booting worker with pid\"\n    ]\n}",
+        "logs": "{}",
+        "stop": "^C"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\n# Frome Town Eagles Installation Script\n#\n# Server Files: /mnt/server\napt update\napt install -y git curl jq file unzip make gcc g++ libtool\n\nmkdir -p /mnt/server\ncd /mnt/server\n\n## Fix git ownership check\ngit config --global --add safe.directory /mnt/server\n\necho \"============================================\"\necho \"Installing Frome Town Eagles\"\necho \"============================================\"\n\nif [ \"${USER_UPLOAD}\" == \"true\" ] || [ \"${USER_UPLOAD}\" == \"1\" ]; then\n    echo -e \"User upload mode - skipping git clone\"\n    exit 0\nfi\n\n## add git ending if it's not on the address\nif [[ ${GIT_ADDRESS} != *.git ]]; then\n    GIT_ADDRESS=${GIT_ADDRESS}.git\nfi\n\nif [ -z \"${USERNAME}\" ] && [ -z \"${ACCESS_TOKEN}\" ]; then\n    echo -e \"Using anonymous git clone\"\nelse\n    GIT_ADDRESS=\"https://${USERNAME}:${ACCESS_TOKEN}@$(echo -e ${GIT_ADDRESS} | cut -d/ -f3-)\"\nfi\n\n## pull git python repo\nif [ \"$(ls -A /mnt/server)\" ]; then\n    echo -e \"/mnt/server directory is not empty.\"\n    if [ -d .git ]; then\n        echo -e \".git directory exists\"\n        if [ -f .git/config ]; then\n            echo -e \"Loading info from git config\"\n            ORIGIN=$(git config --get remote.origin.url)\n        else\n            echo -e \"Files found with no git config\"\n            echo -e \"Closing out without touching things to not break anything\"\n            exit 10\n        fi\n    else\n        echo -e \".git directory missing - initializing git repo\"\n        git init -b main\n        git remote add origin ${GIT_ADDRESS}\n        ORIGIN=${GIT_ADDRESS}\n    fi\n\n    if [ \"${ORIGIN}\" == \"${GIT_ADDRESS}\" ]; then\n        echo \"Pulling latest from git repo\"\n        git fetch --all\n        _BRANCH=\"${BRANCH:-main}\"\n        git reset --hard \"origin/${_BRANCH}\"\n    fi\nelse\n    echo -e \"/mnt/server is empty.\\nCloning files from repo\"\n    if [ -z ${BRANCH} ]; then\n        echo -e \"Cloning default branch\"\n        git clone ${GIT_ADDRESS} .\n    else\n        echo -e \"Cloning ${BRANCH}\"\n        git clone --single-branch --branch ${BRANCH} ${GIT_ADDRESS} .\n    fi\nfi\n\nexport HOME=/mnt/server\n\necho \"\"\necho \"[1/1] Pip dependencies will be installed on first startup.\"\n\necho \"\"\necho \"============================================\"\necho \"Installation complete!\"\necho \"============================================\"\necho \"\"\necho \"IMPORTANT: Set these environment variables:\"\necho \"  - ADMIN_PASSWORD (default: eagles2026 - change immediately)\"\necho \"  - SECRET_KEY     (recommended - Flask session secret)\"\necho \"\"\necho \"Generate SECRET_KEY with:\"\necho \"  python -c 'import secrets; print(secrets.token_hex(32))'\"\necho \"============================================\"\nexit 0\n",
+            "container": "ghcr.io/pelican-eggs/installers:debian",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Admin Password",
+            "description": "Password for admin access. Change from the default immediately after first login.",
+            "env_variable": "ADMIN_PASSWORD",
+            "default_value": "eagles2026",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": [],
+            "sort": 1
+        },
+        {
+            "name": "Secret Key",
+            "description": "Flask session secret key. Generate with: python -c 'import secrets; print(secrets.token_hex(32))'",
+            "env_variable": "SECRET_KEY",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": [],
+            "sort": 2
+        },
+        {
+            "name": "Database Path",
+            "description": "Path to the SQLite database file. Defaults to football.db in the server root.",
+            "env_variable": "DATABASE_PATH",
+            "default_value": "football.db",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": [],
+            "sort": 3
+        },
+        {
+            "name": "Server Port",
+            "description": "Port the application listens on. Pelican sets this automatically.",
+            "env_variable": "PORT",
+            "default_value": "8081",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": [],
+            "sort": 4
+        },
+        {
+            "name": "Git Repo Address",
+            "description": "The URL of your git repository (e.g. https://github.com/youruser/frometowneagles)",
+            "env_variable": "GIT_ADDRESS",
+            "default_value": "https://github.com/counterfitninja/frometowneagles",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": [],
+            "sort": 5
+        },
+        {
+            "name": "Git Branch",
+            "description": "Branch to deploy. Leave blank to use the default branch (main).",
+            "env_variable": "BRANCH",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": [],
+            "sort": 6
+        },
+        {
+            "name": "Git Username",
+            "description": "Git username for private repositories. Leave blank for public repos.",
+            "env_variable": "USERNAME",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": [],
+            "sort": 7
+        },
+        {
+            "name": "Git Access Token",
+            "description": "Personal access token for private repositories. Leave blank for public repos.",
+            "env_variable": "ACCESS_TOKEN",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": true,
+            "rules": [],
+            "sort": 8
+        },
+        {
+            "name": "Auto Update",
+            "description": "Pull latest code from git on each startup. Set to 1 to enable, 0 to disable.",
+            "env_variable": "AUTO_UPDATE",
+            "default_value": "1",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": [],
+            "sort": 9
+        },
+        {
+            "name": "Requirements File",
+            "description": "Path to the pip requirements file.",
+            "env_variable": "REQUIREMENTS_FILE",
+            "default_value": "requirements.txt",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": [],
+            "sort": 10
+        },
+        {
+            "name": "User Uploaded Files",
+            "description": "Set to 1 if you have manually uploaded files and want to skip the git clone during install.",
+            "env_variable": "USER_UPLOAD",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": [],
+            "sort": 11
+        }
+    ]
+}
