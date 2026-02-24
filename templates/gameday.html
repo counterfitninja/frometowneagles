@@ -227,10 +227,11 @@
 <body>
     <div class="no-print">
         <button onclick="window.print()" class="btn">🖨️ Print</button>
-        <button onclick="shareWhatsApp()" class="btn btn-whatsapp">📱 Share on WhatsApp</button>
+        <button onclick="shareWhatsApp(this)" class="btn btn-whatsapp">📱 Share on WhatsApp</button>
         <button onclick="window.location.href='/matches'" class="btn" style="background: #95a5a6;">← Back to Matches</button>
     </div>
 
+    <div id="capture-area" style="background: white; padding: 10px;">
     <h1>⚽ Game Day: {{ formation_name }}</h1>
     <div class="match-info">
         Created: {{ created_at }}<br>
@@ -268,12 +269,45 @@
         </div>
         {% endfor %}
     </div>
+    </div><!-- end capture-area -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
-        function shareWhatsApp() {
-            const publicUrl = window.location.origin + '/public/next-match';
-            const name = {{ formation_name | tojson }};
-            const text = '⚽ Team sheet is ready!\n' + name + '\n\nView the full team selection here:\n' + publicUrl;
-            window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+        async function shareWhatsApp(btn) {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '⏳ Capturing...';
+            btn.disabled = true;
+
+            try {
+                const canvas = await html2canvas(document.getElementById('capture-area'), {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                    logging: false
+                });
+
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                const file = new File([blob], 'team-sheet.png', { type: 'image/png' });
+
+                if (navigator.share && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file], title: 'Team Sheet' });
+                } else {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'team-sheet.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    alert('Could not capture screenshot. Please take a manual screenshot to share.');
+                }
+            } finally {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
         }
     </script>
 </body>

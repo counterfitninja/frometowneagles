@@ -216,7 +216,7 @@
             <div class="nav-buttons">
                 <a href="/public/overview" class="nav-btn">📋 All Matches</a>
                 {% if match %}
-                <button onclick="shareWhatsApp()" class="nav-btn whatsapp">📱 Share on WhatsApp</button>
+                <button onclick="shareWhatsApp(this)" class="nav-btn whatsapp">📱 Share on WhatsApp</button>
                 {% endif %}
                 <a href="/login" class="nav-btn login">🔐 Manager Login</a>
             </div>
@@ -281,31 +281,45 @@
         </div>
     </div>
     {% if match %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
-        function shareWhatsApp() {
-            const opponent = document.querySelector('.match-title').textContent.trim();
-            const infos = document.querySelectorAll('.match-info');
-            const date = infos[0] ? infos[0].textContent.trim() : '';
-            const location = infos[1] ? infos[1].textContent.trim() : '';
+        async function shareWhatsApp(btn) {
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '⏳ Capturing...';
+            btn.disabled = true;
 
-            const playingChips = document.querySelectorAll('.team-section.playing .player-chip');
-            const notPlayingChips = document.querySelectorAll('.team-section.not-playing .player-chip');
+            try {
+                const canvas = await html2canvas(document.querySelector('.card'), {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                    logging: false
+                });
 
-            let text = '⚽ Team Selection\n' + opponent + '\n' + date + ' | ' + location + '\n';
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                const file = new File([blob], 'team-sheet.png', { type: 'image/png' });
 
-            if (playingChips.length > 0) {
-                text += '\n✅ Playing (' + playingChips.length + '):\n';
-                playingChips.forEach(chip => text += '• ' + chip.textContent.trim() + '\n');
+                if (navigator.share && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file], title: 'Team Sheet' });
+                } else {
+                    // Fallback: download the image so the user can share manually
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'team-sheet.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    alert('Could not capture screenshot. Please take a manual screenshot to share.');
+                }
+            } finally {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
             }
-
-            if (notPlayingChips.length > 0) {
-                text += '\n❌ Not Playing (' + notPlayingChips.length + '):\n';
-                notPlayingChips.forEach(chip => text += '• ' + chip.textContent.trim() + '\n');
-            }
-
-            text += '\n' + window.location.href;
-
-            window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
         }
     </script>
     {% endif %}
