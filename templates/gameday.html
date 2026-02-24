@@ -37,6 +37,14 @@
             background: #5568d3;
         }
 
+        .btn-whatsapp {
+            background: #25D366;
+        }
+
+        .btn-whatsapp:hover {
+            background: #1ebe57;
+        }
+
         h1 {
             color: #2c3e50;
             margin-bottom: 10px;
@@ -219,6 +227,7 @@
 <body>
     <div class="no-print">
         <button onclick="window.print()" class="btn">🖨️ Print</button>
+        <button onclick="shareWhatsApp()" class="btn btn-whatsapp">📱 Share on WhatsApp</button>
         <button onclick="window.location.href='/matches'" class="btn" style="background: #95a5a6;">← Back to Matches</button>
     </div>
 
@@ -259,5 +268,13 @@
         </div>
         {% endfor %}
     </div>
+    <script>
+        function shareWhatsApp() {
+            const publicUrl = window.location.origin + '/public/next-match';
+            const name = {{ formation_name | tojson }};
+            const text = '⚽ Team sheet is ready!\n' + name + '\n\nView the full team selection here:\n' + publicUrl;
+            window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+        }
+    </script>
 </body>
 </html>
