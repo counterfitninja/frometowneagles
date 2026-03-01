@@ -517,7 +517,10 @@
         <div class="secondary-controls" id="secondaryControls" style="display: none;">
         </div>
         
-        <button onclick="console.log('Button clicked!'); saveMatch();" class="btn btn-success" style="width: 100%; font-weight: bold;">💾 Save Match</button>
+        <div style="display:flex; gap:10px; width:100%;">
+            <button onclick="console.log('Button clicked!'); saveMatch();" class="btn btn-success" style="flex:1; font-weight: bold;">💾 Save Match</button>
+            <button onclick="viewGameDay()" class="btn" style="flex:1; font-weight:bold; background:#9b59b6;">🖨️ Game Day View</button>
+        </div>
     </div>
     
     <script>
@@ -1704,6 +1707,16 @@
             updateFormationsOverview();
         }
     });
+
+    function viewGameDay() {
+        if (loadedFormationId) {
+            window.open(`/formations/${loadedFormationId}/gameday`, '_blank');
+        } else {
+            if (confirm('Formation not saved yet. Save now to view Game Day sheet?')) {
+                saveMatch();
+            }
+        }
+    }
 
     function buildSharePanel() {
         // Make sure current formation state is saved
