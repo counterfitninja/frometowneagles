@@ -41,9 +41,56 @@
 
     .formation-container {
         display: grid;
-        grid-template-columns: 250px 1fr 200px;
+        grid-template-columns: 250px 1fr 220px;
         gap: 20px;
         overflow: visible;
+    }
+
+    .right-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .formations-overview {
+        background: white;
+        border-radius: 12px;
+        padding: 15px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .formation-mini-card {
+        background: #f8f9fa;
+        border: 2px solid #ecf0f1;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: border-color 0.2s, background 0.2s;
+    }
+
+    .formation-mini-card:hover {
+        border-color: #667eea;
+    }
+
+    .formation-mini-card.active {
+        border-color: #27ae60;
+        background: #e8f5e9;
+    }
+
+    .formation-mini-card .mini-name {
+        font-weight: bold;
+        font-size: 12px;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+
+    .formation-mini-card .mini-players {
+        font-size: 11px;
+        color: #7f8c8d;
+        line-height: 1.4;
+        word-break: break-word;
     }
 
     .players-sidebar {
@@ -282,6 +329,10 @@
     }
 
     @media (max-width: 768px) {
+        .formations-overview {
+            display: none;
+        }
+
         .formation-container {
             grid-template-columns: 1fr;
             gap: 10px;
@@ -506,14 +557,21 @@
             </div>
         </div>
         
-        <div class="subs-bench">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h3 style="margin: 0; color: #2c3e50;">🪑 Substitutes Bench</h3>
-                <button onclick="addSubFromSidebar()" class="btn" style="padding: 4px 8px; font-size: 11px; background: #27ae60;">➕ Add Sub</button>
+        <div class="right-panel">
+            <div class="subs-bench">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0; color: #2c3e50;">🪑 Substitutes Bench</h3>
+                    <button onclick="addSubFromSidebar()" class="btn" style="padding: 4px 8px; font-size: 11px; background: #27ae60;">➕ Add Sub</button>
+                </div>
+                <p style="font-size: 12px; color: #7f8c8d; margin-bottom: 10px;">Drag players here when not on pitch</p>
+                <div class="bench-area" id="subsBench">
+                    <!-- Subs will appear here -->
+                </div>
             </div>
-            <p style="font-size: 12px; color: #7f8c8d; margin-bottom: 10px;">Drag players here when not on pitch</p>
-            <div class="bench-area" id="subsBench">
-                <!-- Subs will appear here -->
+
+            <div class="formations-overview">
+                <h3 style="margin-bottom: 12px; color: #2c3e50; font-size: 14px;">📋 Formations</h3>
+                <div id="formationsMiniList"></div>
             </div>
         </div>
     </div>
@@ -1019,6 +1077,7 @@
         subsOnBench = [];
         matchFormations[currentFormationIndex].players = [];
         matchFormations[currentFormationIndex].subs = [];
+        updateFormationsOverview();
     }
 
     function changeFormation() {
@@ -1049,13 +1108,21 @@
             const x = player.xPercent !== undefined ? (player.xPercent / 100) * pitchRect.width : player.x || pitchRect.width / 2;
             const y = player.yPercent !== undefined ? (player.yPercent / 100) * pitchRect.height : player.y || pitchRect.height / 2;
             addPlayerToPitch(player, x, y);
+            // Hide from "Not Playing" sidebar (addPlayerToPitch doesn't do this)
+            document.querySelectorAll('.player-item').forEach(item => {
+                if (String(item.dataset.id) === String(player.id)) {
+                    item.style.display = 'none';
+                }
+            });
         });
-        
+
         matchFormations[currentFormationIndex].subs.forEach(player => {
             addPlayerToBench(player);
         });
+
+        updateFormationsOverview();
     }
-    
+
     function addFormation() {
         // Save current first
         matchFormations[currentFormationIndex].players = [...playersOnPitch];
@@ -1075,9 +1142,10 @@
         matchFormations.push(newFormation);
         currentFormationIndex = matchFormations.length - 1;
         
-        // Update dropdown
+        // Update dropdown and overview panel
         updateFormationDropdown();
-        
+        updateFormationsOverview();
+
         // Keep current players on display (since we copied them)
         // No need to clear - they're already showing
     }
@@ -1097,6 +1165,9 @@
     
     function updateFormationDropdown() {
         const select = document.getElementById('formationSelect');
+        // Temporarily remove onchange to prevent changeFormation() firing during rebuild
+        const onchangeHandler = select.onchange;
+        select.onchange = null;
         select.innerHTML = '';
         matchFormations.forEach((formation, index) => {
             const option = document.createElement('option');
@@ -1105,8 +1176,36 @@
             if (index === currentFormationIndex) option.selected = true;
             select.appendChild(option);
         });
+        // Restore onchange handler
+        select.onchange = onchangeHandler;
     }
-    
+
+    function updateFormationsOverview() {
+        const list = document.getElementById('formationsMiniList');
+        if (!list) return;
+        list.innerHTML = '';
+        matchFormations.forEach((formation, index) => {
+            const card = document.createElement('div');
+            card.className = 'formation-mini-card' + (index === currentFormationIndex ? ' active' : '');
+            card.onclick = () => {
+                const select = document.getElementById('formationSelect');
+                select.value = index;
+                changeFormation();
+            };
+            const playerNames = formation.players.length
+                ? formation.players.map(p => p.name.split(' ')[0]).join(', ')
+                : 'No players yet';
+            const subCount = formation.subs.length;
+            card.innerHTML = `
+                <div class="mini-name">${formation.name || 'Formation ' + (index + 1)}</div>
+                <div class="mini-players">
+                    ${formation.players.length} on pitch${subCount ? ', ' + subCount + ' sub' + (subCount > 1 ? 's' : '') : ''}<br>
+                    ${playerNames}
+                </div>`;
+            list.appendChild(card);
+        });
+    }
+
     function renameFormation() {
         const newName = prompt('Enter formation name (e.g., 0-15 mins):', matchFormations[currentFormationIndex].name);
         if (newName && newName.trim()) {
@@ -1515,6 +1614,7 @@
                 }
                 
                 // Don't hide the entire sidebar - players on pitch are already hidden individually
+                updateFormationsOverview();
             } catch (error) {
                 console.error('Error loading formation:', error);
             }
@@ -1556,6 +1656,7 @@
                     
                     // Hide available players sidebar since formation is loaded
                     hideAvailablePlayers();
+                    updateFormationsOverview();
                 } else {
                     // Old format - just player positions
                     const pitchRect = pitch.getBoundingClientRect();
@@ -1564,11 +1665,12 @@
                         const y = player.yPercent !== undefined ? (player.yPercent / 100) * pitchRect.height : player.y || pitchRect.height / 2;
                         addPlayerToPitch(player, x, y);
                     });
-                    
+
                     // Hide available players sidebar since formation is loaded
                     hideAvailablePlayers();
+                    updateFormationsOverview();
                 }
-                
+
                 sessionStorage.removeItem('loadFormation');
             } catch (error) {
                 console.error('Error loading formation:', error);
@@ -1593,6 +1695,7 @@
                     console.error('Error auto-loading favorite:', error);
                 }
             }
+            updateFormationsOverview();
         }
     });
 </script>
