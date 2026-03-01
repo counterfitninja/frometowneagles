@@ -565,8 +565,14 @@
         </div>
     </div>
 
-    <div class="formations-overview">
-        <h3 style="margin-bottom: 12px; color: #2c3e50; font-size: 14px;">📋 Formations</h3>
+    <div class="formations-overview" id="formationsOverviewPanel">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <h3 style="margin:0; color: #2c3e50; font-size: 14px;">📋 Formations</h3>
+            <button onclick="shareFormation()" id="shareBtn" style="background:#25D366; color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.558 4.121 1.531 5.856L.057 23.943l6.263-1.643A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.014-1.378l-.36-.214-3.714.974.99-3.616-.235-.372A9.818 9.818 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
+                Share via WhatsApp
+            </button>
+        </div>
         <div id="formationsMiniList"></div>
     </div>
 </div>
@@ -1695,5 +1701,59 @@
             updateFormationsOverview();
         }
     });
+
+    async function shareFormation() {
+        const btn = document.getElementById('shareBtn');
+        const panel = document.getElementById('formationsOverviewPanel');
+        if (!panel) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Capturing...';
+
+        try {
+            // Dynamically load html2canvas if not already loaded
+            if (!window.html2canvas) {
+                await new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                    s.onload = resolve;
+                    s.onerror = reject;
+                    document.head.appendChild(s);
+                });
+            }
+
+            const canvas = await html2canvas(panel, { backgroundColor: '#f0f4f8', scale: 2 });
+            canvas.toBlob(async (blob) => {
+                const matchTitle = document.getElementById('formationSelect')?.options[0]?.text || 'Formation';
+                const text = `Frometown Eagles - Formation Plan\n${matchTitle}`;
+
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], 'formation.png', { type: 'image/png' })] })) {
+                    // Web Share API with image (mobile browsers)
+                    const file = new File([blob], 'formation.png', { type: 'image/png' });
+                    await navigator.share({ title: 'Frometown Eagles Formation', text, files: [file] });
+                } else if (navigator.share) {
+                    // Web Share API without image
+                    await navigator.share({ title: 'Frometown Eagles Formation', text });
+                } else {
+                    // Desktop fallback: download the PNG, then open WhatsApp
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'formation.png';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setTimeout(() => {
+                        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                    }, 500);
+                }
+            }, 'image/png');
+        } catch (err) {
+            console.error('Share failed:', err);
+            alert('Could not share. Please try again.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.558 4.121 1.531 5.856L.057 23.943l6.263-1.643A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.014-1.378l-.36-.214-3.714.974.99-3.616-.235-.372A9.818 9.818 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg> Share via WhatsApp`;
+        }
+    }
 </script>
 {% endblock %}
