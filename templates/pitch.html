@@ -41,23 +41,22 @@
 
     .formation-container {
         display: grid;
-        grid-template-columns: 250px 1fr 220px;
+        grid-template-columns: 250px 1fr 200px;
         gap: 20px;
         overflow: visible;
-    }
-
-    .right-panel {
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
     }
 
     .formations-overview {
         background: white;
         border-radius: 12px;
         padding: 15px;
-        max-height: 400px;
-        overflow-y: auto;
+        margin-top: 15px;
+    }
+
+    #formationsMiniList {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
     }
 
     .formation-mini-card {
@@ -65,9 +64,10 @@
         border: 2px solid #ecf0f1;
         border-radius: 8px;
         padding: 10px;
-        margin-bottom: 8px;
         cursor: pointer;
         transition: border-color 0.2s, background 0.2s;
+        min-width: 150px;
+        flex: 0 0 auto;
     }
 
     .formation-mini-card:hover {
@@ -329,10 +329,6 @@
     }
 
     @media (max-width: 768px) {
-        .formations-overview {
-            display: none;
-        }
-
         .formation-container {
             grid-template-columns: 1fr;
             gap: 10px;
@@ -557,23 +553,21 @@
             </div>
         </div>
         
-        <div class="right-panel">
-            <div class="subs-bench">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <h3 style="margin: 0; color: #2c3e50;">🪑 Substitutes Bench</h3>
-                    <button onclick="addSubFromSidebar()" class="btn" style="padding: 4px 8px; font-size: 11px; background: #27ae60;">➕ Add Sub</button>
-                </div>
-                <p style="font-size: 12px; color: #7f8c8d; margin-bottom: 10px;">Drag players here when not on pitch</p>
-                <div class="bench-area" id="subsBench">
-                    <!-- Subs will appear here -->
-                </div>
+        <div class="subs-bench">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: #2c3e50;">🪑 Substitutes Bench</h3>
+                <button onclick="addSubFromSidebar()" class="btn" style="padding: 4px 8px; font-size: 11px; background: #27ae60;">➕ Add Sub</button>
             </div>
-
-            <div class="formations-overview">
-                <h3 style="margin-bottom: 12px; color: #2c3e50; font-size: 14px;">📋 Formations</h3>
-                <div id="formationsMiniList"></div>
+            <p style="font-size: 12px; color: #7f8c8d; margin-bottom: 10px;">Drag players here when not on pitch</p>
+            <div class="bench-area" id="subsBench">
+                <!-- Subs will appear here -->
             </div>
         </div>
+    </div>
+
+    <div class="formations-overview">
+        <h3 style="margin-bottom: 12px; color: #2c3e50; font-size: 14px;">📋 Formations</h3>
+        <div id="formationsMiniList"></div>
     </div>
 </div>
 
@@ -1195,12 +1189,15 @@
             const playerNames = formation.players.length
                 ? formation.players.map(p => p.name.split(' ')[0]).join(', ')
                 : 'No players yet';
+            const subNames = formation.subs.length
+                ? formation.subs.map(p => p.name.split(' ')[0]).join(', ')
+                : null;
             const subCount = formation.subs.length;
             card.innerHTML = `
                 <div class="mini-name">${formation.name || 'Formation ' + (index + 1)}</div>
                 <div class="mini-players">
-                    ${formation.players.length} on pitch${subCount ? ', ' + subCount + ' sub' + (subCount > 1 ? 's' : '') : ''}<br>
-                    ${playerNames}
+                    ⚽ ${playerNames}<br>
+                    ${subNames ? '🪑 ' + subNames : '<span style="color:#bdc3c7;">No subs</span>'}
                 </div>`;
             list.appendChild(card);
         });
