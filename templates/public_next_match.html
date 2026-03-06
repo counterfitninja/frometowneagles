@@ -185,6 +185,61 @@
             margin-bottom: 10px;
         }
 
+        .upcoming-section {
+            margin-top: 10px;
+        }
+
+        .upcoming-section h2 {
+            color: white;
+            font-size: 22px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .upcoming-card {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 22px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .upcoming-card-left {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .upcoming-opponent {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .upcoming-meta {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+
+        .upcoming-badge {
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .upcoming-badge.no-team {
+            background: #bdc3c7;
+        }
+
         .footer {
             text-align: center;
             color: white;
@@ -273,6 +328,25 @@
             </div>
             {% endif %}
         </div>
+
+        {% if upcoming_matches %}
+        <div class="upcoming-section">
+            <h2>Upcoming Fixtures</h2>
+            {% for m in upcoming_matches %}
+            <div class="upcoming-card">
+                <div class="upcoming-card-left">
+                    <div class="upcoming-opponent">vs {{ m.opponent }}</div>
+                    <div class="upcoming-meta">📅 {{ m.match_date | ukdate }} &nbsp;|&nbsp; 📍 {{ m.location or 'TBD' }}</div>
+                </div>
+                {% if m.playing %}
+                <span class="upcoming-badge">{{ m.playing|length }} selected</span>
+                {% else %}
+                <span class="upcoming-badge no-team">Team TBD</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
 
         <div class="footer">
             {% if version %}

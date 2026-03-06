@@ -574,52 +574,51 @@ def matches_overview_text():
 
 @app.route('/public/next-match')
 def public_next_match():
-    """Public page showing the next upcoming match"""
+    """Public page showing the next upcoming match and all upcoming matches"""
     import json
     today = datetime.now().strftime('%Y-%m-%d')
-    
+
     with get_db() as conn:
-        # Find the next upcoming match (today or later)
-        next_match = conn.execute('''
+        # Find all upcoming matches (today or later)
+        upcoming = conn.execute('''
             SELECT m.*, f.data as formation_data, f.name as formation_name
             FROM matches m
             LEFT JOIN formations f ON m.formation_id = f.id
-            WHERE m.match_date >= ? 
-            ORDER BY m.match_date ASC 
-            LIMIT 1
-        ''', (today,)).fetchone()
-        
+            WHERE m.match_date >= ?
+            ORDER BY m.match_date ASC
+        ''', (today,)).fetchall()
+
         # Get all players
         all_players = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
-    
-    if not next_match:
-        return render_template('public_next_match.html', match=None, version=VERSION)
-    
-    match_dict = dict(next_match)
-    
-    if match_dict['formation_data']:
-        formation_data = json.loads(match_dict['formation_data'])
-        
-        # Get players in formations
-        playing_player_ids = set()
-        if 'formations' in formation_data:
-            for formation in formation_data['formations']:
-                for player in formation.get('players', []):
-                    playing_player_ids.add(str(player['id']))
-                for sub in formation.get('subs', []):
-                    playing_player_ids.add(str(sub['id']))
-        
-        # Separate playing vs not playing
-        playing = [dict(p) for p in all_players if str(p['id']) in playing_player_ids]
-        not_playing = [dict(p) for p in all_players if str(p['id']) not in playing_player_ids]
-        
-        match_dict['playing'] = sorted(playing, key=lambda x: x['name'])
-        match_dict['not_playing'] = sorted(not_playing, key=lambda x: x['name'])
-    else:
-        match_dict['playing'] = []
-        match_dict['not_playing'] = [dict(p) for p in all_players]
-    
-    return render_template('public_next_match.html', match=match_dict, version=VERSION)
+
+    if not upcoming:
+        return render_template('public_next_match.html', match=None, upcoming_matches=[], version=VERSION)
+
+    def process_match(raw_match):
+        match_dict = dict(raw_match)
+        if match_dict['formation_data']:
+            formation_data = json.loads(match_dict['formation_data'])
+            playing_player_ids = set()
+            if 'formations' in formation_data:
+                for formation in formation_data['formations']:
+                    for player in formation.get('players', []):
+                        playing_player_ids.add(str(player['id']))
+                    for sub in formation.get('subs', []):
+                        playing_player_ids.add(str(sub['id']))
+            playing = [dict(p) for p in all_players if str(p['id']) in playing_player_ids]
+            not_playing = [dict(p) for p in all_players if str(p['id']) not in playing_player_ids]
+            match_dict['playing'] = sorted(playing, key=lambda x: x['name'])
+            match_dict['not_playing'] = sorted(not_playing, key=lambda x: x['name'])
+        else:
+            match_dict['playing'] = []
+            match_dict['not_playing'] = []
+        return match_dict
+
+    all_upcoming = [process_match(m) for m in upcoming]
+    next_match = all_upcoming[0]
+    future_matches = all_upcoming[1:]
+
+    return render_template('public_next_match.html', match=next_match, upcoming_matches=future_matches, version=VERSION)
 
 @app.route('/public/overview')
 def public_overview():
