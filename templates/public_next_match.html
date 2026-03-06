@@ -240,6 +240,32 @@
             background: #bdc3c7;
         }
 
+        .upcoming-not-playing {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            padding-top: 10px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .upcoming-not-playing-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #c0392b;
+            margin-right: 4px;
+        }
+
+        .upcoming-not-playing-chip {
+            background: #c0392b;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
         .footer {
             text-align: center;
             color: white;
@@ -342,6 +368,14 @@
                 <span class="upcoming-badge">{{ m.playing|length }} selected</span>
                 {% else %}
                 <span class="upcoming-badge no-team">Team TBD</span>
+                {% endif %}
+                {% if m.not_playing %}
+                <div class="upcoming-not-playing">
+                    <span class="upcoming-not-playing-label">❌ Not Playing:</span>
+                    {% for player in m.not_playing %}
+                    <span class="upcoming-not-playing-chip">{{ player.name }}{% if player.position == 'GK' %} 🧤{% endif %}</span>
+                    {% endfor %}
+                </div>
                 {% endif %}
             </div>
             {% endfor %}
