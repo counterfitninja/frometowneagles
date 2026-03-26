@@ -517,8 +517,7 @@
     ⚠️ Emergency mode active — tap a player to swap
 </div>
 
-<!-- FORMATION TABS (only shown if more than one formation) -->
-{% if formations|length > 1 %}
+<!-- FORMATION TABS -->
 <div class="formation-tabs" id="formationTabs">
     {% for f in formations %}
     <button class="formation-tab{% if loop.first %} active{% endif %}"
@@ -528,7 +527,6 @@
     </button>
     {% endfor %}
 </div>
-{% endif %}
 
 <!-- PITCH -->
 <div class="pitch-wrapper">
