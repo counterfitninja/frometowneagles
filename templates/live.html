@@ -498,6 +498,34 @@
             .live-player { width: 40px; height: 40px; font-size: 8px; }
             .sub-btn { font-size: 14px; padding: 11px; }
         }
+
+        /* SAVE TOAST */
+        .save-toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: #27ae60;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+            z-index: 300;
+            white-space: nowrap;
+        }
+
+        .save-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .save-toast.error {
+            background: #e74c3c;
+        }
     </style>
 </head>
 <body>
@@ -588,9 +616,10 @@
 </div>
 
 <script>
-    const FORMATION_ID = {{ formation_id }};
-    const INITIAL_DATA = {{ formations_json | safe }};
-    const STATE_KEY = 'liveMatch_' + FORMATION_ID;
+    const FORMATION_ID   = {{ formation_id }};
+    const FORMATION_NAME = {{ formation_name | tojson }};
+    const INITIAL_DATA   = {{ formations_json | safe }};
+    const STATE_KEY      = 'liveMatch_' + FORMATION_ID;
 
     let state;
     let selectedOff = null;
@@ -873,6 +902,7 @@
         saveState();
         closeSubModal();
         render();
+        syncToDatabase();
     }
 
     // ── EMERGENCY TAP ───────────────────────────────────────
@@ -884,6 +914,46 @@
         } else {
             alert('No bench players available to bring on.');
         }
+    }
+
+    // ── SYNC TO DATABASE ────────────────────────────────────
+
+    async function syncToDatabase() {
+        // Rebuild the formations array in the same format the DB expects,
+        // stripping the live-only `subbedIn` flag before saving.
+        const formationsForSave = state.formations.map(f => ({
+            name: f.name,
+            players: f.players.map(({ subbedIn, ...rest }) => rest),
+            subs: f.subs.map(({ subbedIn, ...rest }) => rest)
+        }));
+
+        try {
+            const resp = await fetch('/formations/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: FORMATION_ID,
+                    name: FORMATION_NAME,
+                    data: JSON.stringify({ formations: formationsForSave })
+                })
+            });
+
+            if (resp.ok) {
+                showToast('Formation updated ✓');
+            } else {
+                showToast('Save failed — check connection', true);
+            }
+        } catch (e) {
+            showToast('Save failed — check connection', true);
+        }
+    }
+
+    function showToast(msg, isError = false) {
+        const el = document.getElementById('saveToast');
+        el.textContent = msg;
+        el.classList.toggle('error', isError);
+        el.classList.add('show');
+        setTimeout(() => el.classList.remove('show'), 2500);
     }
 
     // ── RESET ────────────────────────────────────────────────
@@ -925,6 +995,8 @@
     loadState();
     render();
 </script>
+
+<div class="save-toast" id="saveToast"></div>
 
 <!-- Long-press top bar title to reset (hidden UX) -->
 <script>
