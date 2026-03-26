@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a2035">
+    <title>🔴 Live: {{ formation_name }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a2035;
+            color: white;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* TOP BAR */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: #242b3d;
+            border-bottom: 1px solid #333d55;
+            flex-shrink: 0;
+            gap: 8px;
+        }
+
+        .back-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 9px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .match-title {
+            font-size: 15px;
+            font-weight: bold;
+            text-align: center;
+            flex: 1;
+            line-height: 1.3;
+            min-width: 0;
+        }
+
+        .match-title small {
+            display: block;
+            font-size: 11px;
+            color: #8899bb;
+            font-weight: normal;
+        }
+
+        .lock-btn {
+            background: none;
+            border: 2px solid #667eea;
+            color: white;
+            padding: 8px 11px;
+            border-radius: 8px;
+            font-size: 17px;
+            cursor: pointer;
+            flex-shrink: 0;
+            min-width: 44px;
+            text-align: center;
+        }
+
+        .lock-btn.unlocked {
+            border-color: #e74c3c;
+            background: rgba(231, 76, 60, 0.15);
+        }
+
+        /* UNLOCK BANNER */
+        .unlock-banner {
+            background: rgba(231, 76, 60, 0.12);
+            border-bottom: 1px solid #e74c3c;
+            color: #e74c3c;
+            text-align: center;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .unlock-banner.hidden { display: none; }
+
+        /* FORMATION TABS */
+        .formation-tabs {
+            display: flex;
+            background: #242b3d;
+            border-bottom: 1px solid #333d55;
+            flex-shrink: 0;
+        }
+
+        .formation-tab {
+            flex: 1;
+            padding: 9px 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: #8899bb;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .formation-tab.active {
+            color: white;
+            border-bottom-color: #667eea;
+        }
+
+        /* PITCH WRAPPER */
+        .pitch-wrapper {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 10px;
+            overflow: hidden;
+        }
+
+        .pitch-outer {
+            width: 100%;
+            max-width: 700px;
+            max-height: 100%;
+        }
+
+        /* Maintains 2:1 landscape aspect ratio */
+        .pitch {
+            position: relative;
+            width: 100%;
+            padding-top: 50%;
+            background: linear-gradient(to right, #3d6e32 0%, #4e8a40 50%, #3d6e32 100%);
+            border: 3px solid rgba(255,255,255,0.6);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .pitch-lines {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+        }
+
+        /* Left edge = halfway line */
+        .pitch-halfline {
+            position: absolute;
+            top: 0; left: 0;
+            width: 2px; height: 100%;
+            background: rgba(255,255,255,0.45);
+        }
+
+        .pitch-center-arc {
+            position: absolute;
+            top: 50%; left: 0;
+            transform: translateY(-50%);
+            width: 55px; height: 55px;
+            border: 2px solid rgba(255,255,255,0.45);
+            border-radius: 50%;
+            border-left: none;
+        }
+
+        .pitch-penalty {
+            position: absolute;
+            right: 0; top: 50%;
+            transform: translateY(-50%);
+            width: 20%; height: 50%;
+            border: 2px solid rgba(255,255,255,0.45);
+            border-right: none;
+        }
+
+        .pitch-goal {
+            position: absolute;
+            right: 0; top: 50%;
+            transform: translateY(-50%);
+            width: 7%; height: 25%;
+            border: 2px solid rgba(255,255,255,0.45);
+            border-right: none;
+            background: rgba(255,255,255,0.08);
+        }
+
+        /* PLAYERS */
+        .live-player {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            background: #4a6cf7;
+            border: 2.5px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            line-height: 1.15;
+            word-break: break-word;
+            overflow: hidden;
+            padding: 3px;
+            transform: translate(-50%, -50%);
+            cursor: default;
+            transition: transform 0.15s, background 0.15s;
+            z-index: 10;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+
+        .live-player.tappable {
+            cursor: pointer;
+        }
+
+        .live-player.tappable:active,
+        .live-player.highlighted {
+            background: #e74c3c;
+            border-color: #ff8080;
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+
+        .live-player.subbed-in {
+            background: #27ae60;
+            border-color: #2ecc71;
+        }
+
+        /* BOTTOM SECTION */
+        .bottom-section {
+            flex-shrink: 0;
+            background: #242b3d;
+            border-top: 2px solid #333d55;
+        }
+
+        .bench-area {
+            padding: 8px 12px 6px;
+        }
+
+        .bench-label {
+            font-size: 10px;
+            color: #8899bb;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .bench-players {
+            display: flex;
+            gap: 7px;
+            flex-wrap: wrap;
+        }
+
+        .bench-chip {
+            background: #fff3cd;
+            color: #7a5800;
+            border: 1.5px solid #ffc107;
+            border-radius: 20px;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .bench-chip.used {
+            background: #2a3149;
+            color: #556080;
+            border-color: #3a4562;
+            text-decoration: line-through;
+        }
+
+        .no-subs-msg {
+            font-size: 12px;
+            color: #8899bb;
+            font-style: italic;
+        }
+
+        /* ACTION ROW */
+        .action-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+        }
+
+        .sub-btn {
+            flex: 1;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 13px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .sub-btn:hover { background: #5568d3; }
+        .sub-btn:active { background: #4455c0; }
+
+        .sub-btn:disabled {
+            background: #3a4562;
+            cursor: not-allowed;
+        }
+
+        .sub-tally {
+            font-size: 12px;
+            color: #8899bb;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        /* SUB LOG */
+        .sub-log {
+            padding: 0 12px 8px;
+            max-height: 52px;
+            overflow-y: auto;
+        }
+
+        .sub-log-item {
+            font-size: 11px;
+            color: #667088;
+            padding: 2px 0;
+        }
+
+        .sub-log-item .name-off { color: #e74c3c; font-weight: 600; }
+        .sub-log-item .name-on  { color: #2ecc71; font-weight: 600; }
+
+        /* MODAL */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.82);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.hidden { display: none; }
+
+        .modal {
+            background: #242b3d;
+            border: 1px solid #3a4562;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 420px;
+            max-height: 88vh;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .modal h3 {
+            font-size: 17px;
+            margin-bottom: 18px;
+            text-align: center;
+            color: white;
+        }
+
+        .modal-section { margin-bottom: 16px; }
+
+        .modal-section-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8899bb;
+            margin-bottom: 8px;
+        }
+
+        .modal-player-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+        }
+
+        .modal-player-btn {
+            padding: 10px 13px;
+            border-radius: 8px;
+            border: 2px solid #333d55;
+            background: #1a2035;
+            color: #ccd0e0;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .modal-player-btn:hover { border-color: #667eea; color: white; }
+
+        .modal-player-btn.sel-off {
+            background: #c0392b;
+            border-color: #e74c3c;
+            color: white;
+        }
+
+        .modal-player-btn.sel-on {
+            background: #27ae60;
+            border-color: #2ecc71;
+            color: white;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .modal-cancel {
+            flex: 1;
+            padding: 13px;
+            border-radius: 10px;
+            border: 2px solid #3a4562;
+            background: none;
+            color: #ccd0e0;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .modal-confirm {
+            flex: 2;
+            padding: 13px;
+            border-radius: 10px;
+            border: none;
+            background: #667eea;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .modal-confirm:disabled {
+            background: #333d55;
+            color: #667088;
+            cursor: not-allowed;
+        }
+
+        /* RESET CONFIRM MODAL */
+        .reset-modal {
+            background: #242b3d;
+            border: 1px solid #e74c3c;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 340px;
+            padding: 24px 20px;
+            text-align: center;
+        }
+
+        .reset-modal h4 {
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .reset-modal p {
+            font-size: 13px;
+            color: #8899bb;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .reset-modal-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .reset-modal-actions button {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-cancel-reset {
+            border: 2px solid #3a4562;
+            background: none;
+            color: #ccd0e0;
+        }
+
+        .btn-do-reset {
+            border: none;
+            background: #e74c3c;
+            color: white;
+        }
+
+        @media (max-width: 400px) {
+            .live-player { width: 40px; height: 40px; font-size: 8px; }
+            .sub-btn { font-size: 14px; padding: 11px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+    <button class="back-btn" onclick="goBack()">← Back</button>
+    <div class="match-title">
+        ⚽ vs {{ opponent }}
+        <small>{{ match_date_display }}{% if location %} · {{ location }}{% endif %}</small>
+    </div>
+    <button class="lock-btn" id="lockBtn" onclick="toggleLock()" title="Lock / Emergency edits">🔒</button>
+</div>
+
+<!-- UNLOCK WARNING BANNER -->
+<div class="unlock-banner hidden" id="unlockBanner">
+    ⚠️ Emergency mode active — tap a player to swap
+</div>
+
+<!-- FORMATION TABS (only shown if more than one formation) -->
+{% if formations|length > 1 %}
+<div class="formation-tabs" id="formationTabs">
+    {% for f in formations %}
+    <button class="formation-tab{% if loop.first %} active{% endif %}"
+            data-index="{{ loop.index0 }}"
+            onclick="switchFormation({{ loop.index0 }})">
+        {{ f.name }}
+    </button>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- PITCH -->
+<div class="pitch-wrapper">
+    <div class="pitch-outer">
+        <div class="pitch" id="pitchEl">
+            <div class="pitch-lines">
+                <div class="pitch-halfline"></div>
+                <div class="pitch-center-arc"></div>
+                <div class="pitch-penalty"></div>
+                <div class="pitch-goal"></div>
+            </div>
+            <div id="pitchPlayers"></div>
+        </div>
+    </div>
+</div>
+
+<!-- BOTTOM: BENCH + ACTIONS + LOG -->
+<div class="bottom-section">
+    <div class="bench-area">
+        <div class="bench-label">🪑 Bench</div>
+        <div class="bench-players" id="benchPlayers"></div>
+    </div>
+    <div class="action-row">
+        <button class="sub-btn" id="subBtn" onclick="openSubModal()">🔄 Sub Made</button>
+        <div class="sub-tally" id="subTally">0 subs</div>
+    </div>
+    <div class="sub-log" id="subLog"></div>
+</div>
+
+<!-- SUB MODAL -->
+<div class="modal-overlay hidden" id="subModal">
+    <div class="modal">
+        <h3>🔄 Record Substitution</h3>
+        <div class="modal-section">
+            <div class="modal-section-label">Player coming OFF ↓</div>
+            <div class="modal-player-grid" id="modalOffList"></div>
+        </div>
+        <div class="modal-section">
+            <div class="modal-section-label">Player coming ON ↑</div>
+            <div class="modal-player-grid" id="modalOnList"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="modal-cancel" onclick="closeSubModal()">Cancel</button>
+            <button class="modal-confirm" id="confirmSubBtn" onclick="confirmSub()" disabled>Confirm Sub ✓</button>
+        </div>
+    </div>
+</div>
+
+<!-- RESET CONFIRM MODAL -->
+<div class="modal-overlay hidden" id="resetModal">
+    <div class="reset-modal">
+        <h4>🔄 Reset Live View?</h4>
+        <p>This will clear all substitutions made and restore the original team. The saved formation is NOT affected.</p>
+        <div class="reset-modal-actions">
+            <button class="btn-cancel-reset" onclick="closeResetModal()">Cancel</button>
+            <button class="btn-do-reset" onclick="doReset()">Reset</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const FORMATION_ID = {{ formation_id }};
+    const INITIAL_DATA = {{ formations_json | safe }};
+    const STATE_KEY = 'liveMatch_' + FORMATION_ID;
+
+    let state;
+    let selectedOff = null;
+    let selectedOn  = null;
+
+    // ── STATE ───────────────────────────────────────────────
+
+    function freshState() {
+        return {
+            formationIndex: 0,
+            locked: true,
+            formations: INITIAL_DATA.map(f => ({
+                name: f.name,
+                players: (f.players || []).map(p => ({ ...p, subbedIn: false })),
+                subs: [...(f.subs || [])],
+                subbedOff: []
+            })),
+            subLog: []
+        };
+    }
+
+    function loadState() {
+        try {
+            const raw = localStorage.getItem(STATE_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                // Basic sanity check — reject stale saves with wrong formation count
+                if (parsed.formations && parsed.formations.length === INITIAL_DATA.length) {
+                    state = parsed;
+                    return;
+                }
+            }
+        } catch(e) {}
+        state = freshState();
+        saveState();
+    }
+
+    function saveState() {
+        localStorage.setItem(STATE_KEY, JSON.stringify(state));
+    }
+
+    function currentFormation() {
+        return state.formations[state.formationIndex];
+    }
+
+    // ── RENDER ──────────────────────────────────────────────
+
+    function render() {
+        renderPitch();
+        renderBench();
+        renderSubLog();
+        renderLockUI();
+        renderTabs();
+        renderSubBtn();
+    }
+
+    function firstName(name) {
+        return (name || '').split(' ')[0];
+    }
+
+    function renderPitch() {
+        const f = currentFormation();
+        const container = document.getElementById('pitchPlayers');
+        container.innerHTML = '';
+
+        f.players.forEach((p, i) => {
+            const el = document.createElement('div');
+            let cls = 'live-player';
+            if (p.subbedIn) cls += ' subbed-in';
+            if (!state.locked) cls += ' tappable';
+            el.className = cls;
+            el.style.left = p.xPercent + '%';
+            el.style.top  = p.yPercent + '%';
+            el.textContent = firstName(p.name);
+            el.title = p.name + (p.position ? ' · ' + p.position : '');
+            el.dataset.idx = i;
+
+            if (!state.locked) {
+                el.addEventListener('click', () => emergencyTap(i));
+            }
+            container.appendChild(el);
+        });
+    }
+
+    function renderBench() {
+        const f = currentFormation();
+        const bench = document.getElementById('benchPlayers');
+        bench.innerHTML = '';
+
+        if (f.subs.length === 0 && f.subbedOff.length === 0) {
+            bench.innerHTML = '<span class="no-subs-msg">No substitutes</span>';
+            return;
+        }
+
+        f.subs.forEach(p => {
+            const el = document.createElement('div');
+            el.className = 'bench-chip';
+            el.textContent = firstName(p.name) + (p.position ? ' · ' + p.position : '');
+            bench.appendChild(el);
+        });
+
+        f.subbedOff.forEach(p => {
+            const el = document.createElement('div');
+            el.className = 'bench-chip used';
+            el.textContent = firstName(p.name);
+            el.title = p.name + ' (subbed off)';
+            bench.appendChild(el);
+        });
+    }
+
+    function renderSubLog() {
+        const logEl = document.getElementById('subLog');
+        const entries = state.subLog.filter(s => s.fi === state.formationIndex);
+        if (entries.length === 0) {
+            logEl.innerHTML = '';
+            return;
+        }
+        logEl.innerHTML = [...entries].reverse().map(s =>
+            `<div class="sub-log-item">` +
+            `🔴 <span class="name-off">${firstName(s.off)}</span> ` +
+            `→ 🟢 <span class="name-on">${firstName(s.on)}</span>` +
+            `<span style="color:#445"> · ${s.time}</span>` +
+            `</div>`
+        ).join('');
+    }
+
+    function renderLockUI() {
+        const lockBtn = document.getElementById('lockBtn');
+        const banner  = document.getElementById('unlockBanner');
+        if (state.locked) {
+            lockBtn.textContent = '🔒';
+            lockBtn.classList.remove('unlocked');
+            banner.classList.add('hidden');
+        } else {
+            lockBtn.textContent = '🔓';
+            lockBtn.classList.add('unlocked');
+            banner.classList.remove('hidden');
+        }
+    }
+
+    function renderTabs() {
+        document.querySelectorAll('.formation-tab').forEach((tab, i) => {
+            tab.classList.toggle('active', i === state.formationIndex);
+        });
+    }
+
+    function renderSubBtn() {
+        const f = currentFormation();
+        const btn = document.getElementById('subBtn');
+        btn.disabled = f.subs.length === 0;
+
+        const count = state.subLog.filter(s => s.fi === state.formationIndex).length;
+        document.getElementById('subTally').textContent = count + (count === 1 ? ' sub' : ' subs');
+    }
+
+    // ── LOCK ────────────────────────────────────────────────
+
+    function toggleLock() {
+        if (state.locked) {
+            if (confirm('Enable emergency edits?\n\nUse this for injuries or late player changes only. Tap a player on the pitch to swap them.')) {
+                state.locked = false;
+                saveState();
+                render();
+            }
+        } else {
+            state.locked = true;
+            saveState();
+            render();
+        }
+    }
+
+    // ── FORMATION TABS ──────────────────────────────────────
+
+    function switchFormation(index) {
+        state.formationIndex = index;
+        saveState();
+        render();
+    }
+
+    // ── SUB MODAL ───────────────────────────────────────────
+
+    function openSubModal(preSelectOffIndex) {
+        const f = currentFormation();
+        if (f.subs.length === 0) {
+            alert('No substitutes remaining on the bench.');
+            return;
+        }
+
+        selectedOff = null;
+        selectedOn  = null;
+
+        // Build OFF list
+        const offList = document.getElementById('modalOffList');
+        offList.innerHTML = '';
+        f.players.forEach((p, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'modal-player-btn';
+            btn.textContent = firstName(p.name) + (p.position ? ' · ' + p.position : '');
+            btn.dataset.idx = i;
+            btn.addEventListener('click', () => selectOff(i));
+            offList.appendChild(btn);
+        });
+
+        // Build ON list
+        const onList = document.getElementById('modalOnList');
+        onList.innerHTML = '';
+        f.subs.forEach((p, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'modal-player-btn';
+            btn.textContent = firstName(p.name) + (p.position ? ' · ' + p.position : '');
+            btn.dataset.idx = i;
+            btn.addEventListener('click', () => selectOn(i));
+            onList.appendChild(btn);
+        });
+
+        document.getElementById('subModal').classList.remove('hidden');
+        updateConfirmBtn();
+
+        // Pre-select if coming from emergency tap
+        if (preSelectOffIndex !== undefined) {
+            selectOff(preSelectOffIndex);
+        }
+    }
+
+    function selectOff(index) {
+        selectedOff = index;
+        document.querySelectorAll('#modalOffList .modal-player-btn').forEach(b => b.classList.remove('sel-off'));
+        const target = document.querySelector(`#modalOffList .modal-player-btn[data-idx="${index}"]`);
+        if (target) target.classList.add('sel-off');
+        updateConfirmBtn();
+    }
+
+    function selectOn(index) {
+        selectedOn = index;
+        document.querySelectorAll('#modalOnList .modal-player-btn').forEach(b => b.classList.remove('sel-on'));
+        const target = document.querySelector(`#modalOnList .modal-player-btn[data-idx="${index}"]`);
+        if (target) target.classList.add('sel-on');
+        updateConfirmBtn();
+    }
+
+    function updateConfirmBtn() {
+        document.getElementById('confirmSubBtn').disabled = (selectedOff === null || selectedOn === null);
+    }
+
+    function closeSubModal() {
+        document.getElementById('subModal').classList.add('hidden');
+        selectedOff = null;
+        selectedOn  = null;
+    }
+
+    function confirmSub() {
+        if (selectedOff === null || selectedOn === null) return;
+
+        const f = currentFormation();
+        const playerOff = f.players[selectedOff];
+        const playerOn  = f.subs[selectedOn];
+
+        // Swap: incoming player takes the outgoing player's pitch position
+        const newPitchPlayer = {
+            ...playerOn,
+            xPercent: playerOff.xPercent,
+            yPercent: playerOff.yPercent,
+            subbedIn: true
+        };
+
+        f.players[selectedOff] = newPitchPlayer;
+        f.subs.splice(selectedOn, 1);
+        f.subbedOff.push(playerOff);
+
+        // Log it
+        const now = new Date();
+        const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+        state.subLog.push({
+            off: playerOff.name,
+            on:  playerOn.name,
+            time,
+            fi: state.formationIndex
+        });
+
+        saveState();
+        closeSubModal();
+        render();
+    }
+
+    // ── EMERGENCY TAP ───────────────────────────────────────
+
+    function emergencyTap(playerIndex) {
+        const f = currentFormation();
+        if (f.subs.length > 0) {
+            openSubModal(playerIndex);
+        } else {
+            alert('No bench players available to bring on.');
+        }
+    }
+
+    // ── RESET ────────────────────────────────────────────────
+
+    function openResetModal() {
+        document.getElementById('resetModal').classList.remove('hidden');
+    }
+
+    function closeResetModal() {
+        document.getElementById('resetModal').classList.add('hidden');
+    }
+
+    function doReset() {
+        state = freshState();
+        saveState();
+        closeResetModal();
+        render();
+    }
+
+    // ── NAVIGATION ───────────────────────────────────────────
+
+    function goBack() {
+        const hasSubs = state.subLog.length > 0;
+        if (hasSubs) {
+            if (!confirm('Leave live view?\n\nYour substitution log will be remembered if you come back.')) return;
+        }
+        history.back();
+    }
+
+    // ── INIT ─────────────────────────────────────────────────
+
+    // Handle ?reset=1 in URL to force a fresh state
+    if (new URLSearchParams(window.location.search).get('reset') === '1') {
+        localStorage.removeItem(STATE_KEY);
+        // Remove the param without reloading
+        history.replaceState(null, '', window.location.pathname);
+    }
+
+    loadState();
+    render();
+</script>
+
+<!-- Long-press top bar title to reset (hidden UX) -->
+<script>
+    let pressTimer;
+    document.querySelector('.match-title').addEventListener('touchstart', () => {
+        pressTimer = setTimeout(() => openResetModal(), 1200);
+    });
+    document.querySelector('.match-title').addEventListener('touchend', () => clearTimeout(pressTimer));
+    document.querySelector('.match-title').addEventListener('mousedown', () => {
+        pressTimer = setTimeout(() => openResetModal(), 1200);
+    });
+    document.querySelector('.match-title').addEventListener('mouseup', () => clearTimeout(pressTimer));
+</script>
+
+</body>
+</html>

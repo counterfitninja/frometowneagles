@@ -400,6 +400,45 @@ def gameday_view(formation_id):
     
     return redirect(url_for('formations'))
 
+@app.route('/formations/<int:formation_id>/live')
+@login_required
+def live_view(formation_id):
+    import json as _json
+    with get_db() as conn:
+        row = conn.execute('''
+            SELECT f.*, m.opponent, m.match_date, m.location
+            FROM formations f
+            LEFT JOIN matches m ON m.formation_id = f.id
+            WHERE f.id = ?
+        ''', (formation_id,)).fetchone()
+
+    if not row:
+        return redirect(url_for('formations'))
+
+    try:
+        data = _json.loads(row['data'])
+        formations_data = data.get('formations', [])
+
+        match_date_display = ''
+        if row['match_date']:
+            try:
+                d = datetime.strptime(row['match_date'], '%Y-%m-%d')
+                match_date_display = d.strftime('%a %d %b %Y')
+            except Exception:
+                match_date_display = row['match_date']
+
+        return render_template('live.html',
+                               formation_id=formation_id,
+                               formation_name=row['name'],
+                               formations_json=_json.dumps(formations_data),
+                               opponent=row['opponent'] or 'Unknown',
+                               match_date_display=match_date_display,
+                               location=row['location'] or '',
+                               version=VERSION)
+    except Exception as e:
+        print(f"Error loading live view {formation_id}: {str(e)}")
+        return f"Error loading live view: {str(e)}", 500
+
 @app.route('/matches')
 @login_required
 def matches():
