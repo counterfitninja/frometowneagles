@@ -756,6 +756,22 @@ def gameday():
             # No upcoming matches, redirect to matches page
             return redirect(url_for('matches'))
 
+@app.route('/live')
+@login_required
+def live_shortcut():
+    """Redirect to the next upcoming match's live view (must have a formation)"""
+    today = datetime.now().strftime('%Y-%m-%d')
+    with get_db() as conn:
+        next_match = conn.execute('''
+            SELECT * FROM matches
+            WHERE match_date >= ? AND formation_id IS NOT NULL
+            ORDER BY match_date ASC
+            LIMIT 1
+        ''', (today,)).fetchone()
+    if next_match:
+        return redirect(url_for('live_view', formation_id=dict(next_match)['formation_id']))
+    return redirect(url_for('matches'))
+
 @app.route('/matches/add', methods=['POST'])
 @login_required
 def add_match():

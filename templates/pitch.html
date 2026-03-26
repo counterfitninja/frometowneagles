@@ -520,6 +520,7 @@
         <div style="display:flex; gap:10px; width:100%;">
             <button onclick="console.log('Button clicked!'); saveMatch();" class="btn btn-success" style="flex:1; font-weight: bold;">💾 Save Match</button>
             <button onclick="viewGameDay()" class="btn" style="flex:1; font-weight:bold; background:#9b59b6;">🖨️ Game Day View</button>
+            <button onclick="viewLive()" class="btn" style="flex:1; font-weight:bold; background:#e74c3c;">🔴 Live</button>
         </div>
     </div>
     
@@ -1713,6 +1714,16 @@
             window.open(`/formations/${loadedFormationId}/gameday`, '_blank');
         } else {
             if (confirm('Formation not saved yet. Save now to view Game Day sheet?')) {
+                saveMatch();
+            }
+        }
+    }
+
+    function viewLive() {
+        if (loadedFormationId) {
+            window.location.href = `/formations/${loadedFormationId}/live`;
+        } else {
+            if (confirm('Formation not saved yet. Save now to open Live view?')) {
                 saveMatch();
             }
         }
