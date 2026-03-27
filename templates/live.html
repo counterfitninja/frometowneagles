@@ -233,6 +233,14 @@
         .live-player.subbed-in {
             background: #27ae60;
             border-color: #2ecc71;
+            box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.5);
+            animation: pulse-new 1.8s ease-in-out infinite;
+        }
+
+        @keyframes pulse-new {
+            0%   { box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.5); }
+            50%  { box-shadow: 0 0 0 8px rgba(46, 204, 113, 0); }
+            100% { box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.5); }
         }
 
         /* BOTTOM SECTION */
@@ -996,8 +1004,9 @@
             }
         });
 
-        // Switch to the target formation tab — it already has its own player state
+        // Switch to the target formation tab and mark all its players as newly on
         state.formationIndex = targetIndex;
+        target.players = target.players.map(p => ({ ...p, subbedIn: true }));
         saveState();
         closeSwitchModal();
         render();
