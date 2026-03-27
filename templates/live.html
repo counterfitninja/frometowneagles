@@ -220,7 +220,7 @@
         }
 
         .live-player.tappable {
-            cursor: pointer;
+            cursor: grab;
         }
 
         .live-player.tappable:active,
@@ -228,6 +228,14 @@
             background: #e74c3c;
             border-color: #ff8080;
             transform: translate(-50%, -50%) scale(1.2);
+        }
+
+        .live-player.dragging {
+            cursor: grabbing;
+            opacity: 0.85;
+            transform: translate(-50%, -50%) scale(1.15);
+            z-index: 50;
+            transition: none;
         }
 
         .live-player.subbed-in {
@@ -572,7 +580,7 @@
 
 <!-- UNLOCK WARNING BANNER -->
 <div class="unlock-banner hidden" id="unlockBanner">
-    ⚠️ Emergency mode active — tap a player to swap
+    ⚠️ Emergency mode active — drag to reposition · tap to sub
 </div>
 
 <!-- FORMATION TABS -->
@@ -730,7 +738,66 @@
             el.dataset.idx = i;
 
             if (!state.locked) {
-                el.addEventListener('click', () => emergencyTap(i));
+                let dragState = null;
+
+                el.addEventListener('pointerdown', (e) => {
+                    dragState = {
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        origX: p.xPercent,
+                        origY: p.yPercent,
+                        moved: false
+                    };
+                    el.setPointerCapture(e.pointerId);
+                });
+
+                el.addEventListener('pointermove', (e) => {
+                    if (!dragState) return;
+                    const dx = e.clientX - dragState.startX;
+                    const dy = e.clientY - dragState.startY;
+                    if (!dragState.moved && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+                        dragState.moved = true;
+                        el.classList.add('dragging');
+                    }
+                    if (dragState.moved) {
+                        e.preventDefault();
+                        const pitch = document.getElementById('pitchEl');
+                        const rect = pitch.getBoundingClientRect();
+                        const newX = Math.max(2, Math.min(98, dragState.origX + (dx / rect.width) * 100));
+                        const newY = Math.max(2, Math.min(98, dragState.origY + (dy / rect.height) * 100));
+                        el.style.left = newX + '%';
+                        el.style.top  = newY + '%';
+                    }
+                });
+
+                el.addEventListener('pointerup', (e) => {
+                    if (!dragState) return;
+                    el.classList.remove('dragging');
+                    if (dragState.moved) {
+                        const pitch = document.getElementById('pitchEl');
+                        const rect = pitch.getBoundingClientRect();
+                        const dx = e.clientX - dragState.startX;
+                        const dy = e.clientY - dragState.startY;
+                        const newX = Math.max(2, Math.min(98, dragState.origX + (dx / rect.width) * 100));
+                        const newY = Math.max(2, Math.min(98, dragState.origY + (dy / rect.height) * 100));
+                        currentFormation().players[i].xPercent = newX;
+                        currentFormation().players[i].yPercent = newY;
+                        saveState();
+                        syncToDatabase();
+                    } else {
+                        emergencyTap(i);
+                    }
+                    dragState = null;
+                });
+
+                el.addEventListener('pointercancel', () => {
+                    if (dragState) {
+                        el.classList.remove('dragging');
+                        el.style.left = dragState.origX + '%';
+                        el.style.top  = dragState.origY + '%';
+                        dragState = null;
+                    }
+                });
             }
             container.appendChild(el);
         });
