@@ -312,6 +312,28 @@
             cursor: not-allowed;
         }
 
+        .switch-btn {
+            background: #f39c12;
+            color: white;
+            border: none;
+            padding: 13px 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+
+        .switch-btn:hover { background: #d68910; }
+        .switch-btn:active { background: #b9770e; }
+
+        .switch-btn:disabled {
+            background: #3a4562;
+            cursor: not-allowed;
+        }
+
         .sub-tally {
             font-size: 12px;
             color: #8899bb;
@@ -579,6 +601,7 @@
     </div>
     <div class="action-row">
         <button class="sub-btn" id="subBtn" onclick="openSubModal()">🔄 Sub Made</button>
+        <button class="switch-btn" id="switchBtn" onclick="openSwitchModal()" title="Replace entire team at once">⚡ Full Switch</button>
         <div class="sub-tally" id="subTally">0 subs</div>
     </div>
     <div class="sub-log" id="subLog"></div>
@@ -674,6 +697,7 @@
         renderLockUI();
         renderTabs();
         renderSubBtn();
+        renderSwitchBtn();
     }
 
     function firstName(name) {
@@ -916,6 +940,76 @@
         }
     }
 
+    // ── FULL FORMATION SWITCH ────────────────────────────────
+
+    function openSwitchModal() {
+        const list = document.getElementById('switchFormationList');
+        list.innerHTML = '';
+
+        const others = state.formations
+            .map((f, i) => ({ f, i }))
+            .filter(({ i }) => i !== state.formationIndex);
+
+        if (others.length === 0) {
+            list.innerHTML = '<p style="color:#8899bb; font-size:13px;">No other formations saved for this match. Add another formation in the pitch editor first.</p>';
+        } else {
+            others.forEach(({ f, i }) => {
+                const btn = document.createElement('button');
+                btn.className = 'modal-player-btn';
+                btn.style.cssText = 'width:100%; text-align:left; padding:14px; font-size:14px;';
+
+                const playerNames = (f.players || []).map(p => firstName(p.name)).join(', ');
+                btn.innerHTML = `<strong>${f.name}</strong><br>
+                    <span style="font-size:12px; color:#8899bb; font-weight:normal;">${playerNames || 'No players'}</span>`;
+
+                btn.addEventListener('click', () => confirmFullSwitch(i));
+                list.appendChild(btn);
+            });
+        }
+
+        document.getElementById('switchModal').classList.remove('hidden');
+    }
+
+    function closeSwitchModal() {
+        document.getElementById('switchModal').classList.add('hidden');
+    }
+
+    function confirmFullSwitch(targetIndex) {
+        const source = currentFormation();
+        const target = state.formations[targetIndex];
+
+        const now = new Date();
+        const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+        // Log every player coming off
+        source.players.forEach(p => {
+            // Find if this player exists in target as a starter (coming on)
+            const comingOn = target.players.find(tp => tp.id === p.id);
+            if (!comingOn) {
+                // Only log as subbed off if they're not also starting in the new formation
+                state.subLog.push({
+                    off: p.name,
+                    on: '(formation switch)',
+                    time,
+                    fi: state.formationIndex
+                });
+            }
+        });
+
+        // Switch to the target formation tab — it already has its own player state
+        state.formationIndex = targetIndex;
+        saveState();
+        closeSwitchModal();
+        render();
+        syncToDatabase();
+    }
+
+    function renderSwitchBtn() {
+        const btn = document.getElementById('switchBtn');
+        const hasOthers = state.formations.length > 1;
+        btn.disabled = !hasOthers;
+    }
+
     // ── SYNC TO DATABASE ────────────────────────────────────
 
     async function syncToDatabase() {
@@ -995,6 +1089,20 @@
     loadState();
     render();
 </script>
+
+<!-- FULL SWITCH MODAL -->
+<div class="modal-overlay hidden" id="switchModal">
+    <div class="modal">
+        <h3>⚡ Full Formation Switch</h3>
+        <p style="font-size:13px; color:#8899bb; margin-bottom:16px; line-height:1.5;">
+            Replaces all players on the pitch at once. Current players are logged as subbed off.
+        </p>
+        <div id="switchFormationList" style="display:flex; flex-direction:column; gap:10px;"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+            <button class="modal-cancel" onclick="closeSwitchModal()">Cancel</button>
+        </div>
+    </div>
+</div>
 
 <div class="save-toast" id="saveToast"></div>
 
