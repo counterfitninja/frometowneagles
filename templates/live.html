@@ -1004,9 +1004,14 @@
             }
         });
 
-        // Switch to the target formation tab and mark all its players as newly on
+        // Mark only players new to the pitch (not already on in source formation)
+        const sourceIds = new Set(source.players.map(p => p.id));
+        target.players = target.players.map(p => ({
+            ...p,
+            subbedIn: !sourceIds.has(p.id)
+        }));
+
         state.formationIndex = targetIndex;
-        target.players = target.players.map(p => ({ ...p, subbedIn: true }));
         saveState();
         closeSwitchModal();
         render();
