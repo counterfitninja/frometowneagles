@@ -303,6 +303,26 @@
         pointer-events: none;
     }
 
+    .sub-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #e74c3c;
+        color: white;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 10px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid white;
+        pointer-events: none;
+        z-index: 20;
+        line-height: 1;
+    }
+
     .controls {
         display: flex;
         gap: 10px;
@@ -376,7 +396,15 @@
             max-width: 40px;
             line-height: 1.1;
         }
-        
+
+        .sub-badge {
+            width: 15px;
+            height: 15px;
+            font-size: 9px;
+            top: -4px;
+            right: -4px;
+        }
+
         .player-item {
             padding: 10px 8px;
             margin-bottom: 8px;
@@ -537,9 +565,10 @@
             <div id="availablePlayersList">
                 {% if players %}
                     {% for player in players %}
-                    <div class="player-item" draggable="true" data-id="{{ player.id }}" data-name="{{ player.name }}" data-position="{{ player.position }}">
+                    {% set sc = sub_counts.get(player.id|string, 0) %}
+                    <div class="player-item" draggable="true" data-id="{{ player.id }}" data-name="{{ player.name }}" data-position="{{ player.position }}" data-sub-count="{{ sc }}">
                         <div style="font-weight: bold;">{{ player.name }}</div>
-                        <div style="font-size: 12px; color: #7f8c8d;">{{ player.position }} - {% for i in range(player.rating) %}⭐{% endfor %}</div>
+                        <div style="font-size: 12px; color: #7f8c8d;">{{ player.position }} - {% for i in range(player.rating) %}⭐{% endfor %}{% if sc > 0 %} &nbsp;·&nbsp; <span style="color:#e74c3c; font-weight:bold;">sub ×{{ sc }}</span>{% endif %}</div>
                     </div>
                     {% endfor %}
                 {% else %}
@@ -605,6 +634,12 @@
         const sidebar = document.getElementById('playersSidebar');
         sidebar.classList.toggle('collapsed');
     }
+
+    const subCounts = {
+        {% for player in players %}
+        "{{ player.id }}": {{ sub_counts.get(player.id|string, 0) }}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    };
 
     let draggedPlayer = null;
     let playersOnPitch = [];
@@ -905,7 +940,8 @@
         playerDiv.className = 'player-on-pitch';
         playerDiv.style.left = `${xPercent}%`;
         playerDiv.style.top = `${yPercent}%`;
-        playerDiv.innerHTML = `<div class="player-name">${player.name.split(' ')[0]}</div>`;
+        const sc = subCounts[String(player.id)] || 0;
+        playerDiv.innerHTML = `<div class="player-name">${player.name.split(' ')[0]}</div>${sc > 0 ? `<span class="sub-badge">${sc}</span>` : ''}`;
         playerDiv.dataset.id = player.id;
         playerDiv.dataset.xPercent = xPercent;
         playerDiv.dataset.yPercent = yPercent;
