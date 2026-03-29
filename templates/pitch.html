@@ -152,6 +152,7 @@
     }
 
     .sub-player {
+        position: relative;
         background: #fff3cd;
         border: 2px solid #ffc107;
         border-radius: 8px;
@@ -635,11 +636,34 @@
         sidebar.classList.toggle('collapsed');
     }
 
-    const subCounts = {
-        {% for player in players %}
-        "{{ player.id }}": {{ sub_counts.get(player.id|string, 0) }}{% if not loop.last %},{% endif %}
-        {% endfor %}
-    };
+    function getSubCount(playerId) {
+        const pid = String(playerId);
+        let count = 0;
+        matchFormations.forEach((f, i) => {
+            const subs = i === currentFormationIndex ? subsOnBench : (f.subs || []);
+            subs.forEach(sub => { if (String(sub.id) === pid) count++; });
+        });
+        return count;
+    }
+
+    function refreshSubBadges() {
+        document.querySelectorAll('.player-on-pitch').forEach(el => {
+            const count = getSubCount(el.dataset.id);
+            let badge = el.querySelector('.sub-badge');
+            if (count > 0) {
+                if (!badge) { badge = document.createElement('span'); badge.className = 'sub-badge'; el.appendChild(badge); }
+                badge.textContent = count;
+            } else if (badge) { badge.remove(); }
+        });
+        document.querySelectorAll('.sub-player').forEach(el => {
+            const count = getSubCount(el.dataset.id);
+            let badge = el.querySelector('.sub-badge');
+            if (count > 0) {
+                if (!badge) { badge = document.createElement('span'); badge.className = 'sub-badge'; el.appendChild(badge); }
+                badge.textContent = count;
+            } else if (badge) { badge.remove(); }
+        });
+    }
 
     let draggedPlayer = null;
     let playersOnPitch = [];
@@ -940,7 +964,7 @@
         playerDiv.className = 'player-on-pitch';
         playerDiv.style.left = `${xPercent}%`;
         playerDiv.style.top = `${yPercent}%`;
-        const sc = subCounts[String(player.id)] || 0;
+        const sc = getSubCount(player.id);
         playerDiv.innerHTML = `<div class="player-name">${player.name.split(' ')[0]}</div>${sc > 0 ? `<span class="sub-badge">${sc}</span>` : ''}`;
         playerDiv.dataset.id = player.id;
         playerDiv.dataset.xPercent = xPercent;
@@ -1067,17 +1091,19 @@
         subDiv.addEventListener('dblclick', () => {
             subDiv.remove();
             subsOnBench = subsOnBench.filter(p => String(p.id) !== String(player.id));
-            
+
             // Show player back in available players list
             document.querySelectorAll('.player-item').forEach(item => {
                 if (String(item.dataset.id) === String(player.id)) {
                     item.style.display = '';
                 }
             });
+            refreshSubBadges();
         });
-        
+
         bench.appendChild(subDiv);
         subsOnBench.push(player);
+        refreshSubBadges();
         
         // Hide player from available players list
         document.querySelectorAll('.player-item').forEach(item => {
