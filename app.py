@@ -270,19 +270,14 @@ def pitch():
     
     with get_db() as conn:
         players_list = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
-        all_formations = conn.execute('SELECT data FROM formations').fetchall()
 
     import json as _json_pitch
     sub_counts = {}
-    for f in all_formations:
-        try:
-            fdata = _json_pitch.loads(f['data'])
-            for formation in fdata.get('formations', []):
-                for sub in formation.get('subs', []):
-                    pid = str(sub['id'])
-                    sub_counts[pid] = sub_counts.get(pid, 0) + 1
-        except Exception:
-            pass
+    if formation_data:
+        for formation in formation_data['data'].get('formations', []):
+            for sub in formation.get('subs', []):
+                pid = str(sub['id'])
+                sub_counts[pid] = sub_counts.get(pid, 0) + 1
 
     return render_template('pitch.html', players=players_list, formation=formation_data, sub_counts=sub_counts, version=VERSION)
 
