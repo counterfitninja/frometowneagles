@@ -29,12 +29,12 @@
     }
 
     .match-card.no-formation {
-        border-left: 5px solid #e74c3c;
+        border-left: 5px solid #c41e3a;
         background: #fff5f5;
     }
 
     .match-card.has-formation {
-        border-left: 5px solid #27ae60;
+        border-left: 5px solid #d4af37;
         background: #f0fff4;
     }
 
@@ -45,7 +45,7 @@
     .match-date {
         font-size: 18px;
         font-weight: bold;
-        color: #2c3e50;
+        color: #003d7a;
         margin-bottom: 5px;
     }
 
@@ -74,12 +74,12 @@
     }
 
     .status-badge.ready {
-        background: #27ae60;
-        color: white;
+        background: #d4af37;
+        color: #003d7a;
     }
 
     .status-badge.pending {
-        background: #e74c3c;
+        background: #c41e3a;
         color: white;
     }
 
@@ -118,7 +118,7 @@
     }
 
     .summary-box .stat strong {
-        color: #2c3e50;
+        color: #003d7a;
     }
 
     @media (max-width: 768px) {
@@ -150,21 +150,21 @@
             </p>
         </div>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <button onclick="showAddMatchForm()" class="btn" style="background: #27ae60;">➕ Add Match</button>
+            <button onclick="showAddMatchForm()" class="btn" style="background: #d4af37; color: #003d7a;">➕ Add Match</button>
             {% if show_past %}
             <a href="/matches" class="btn" style="background: #95a5a6; color: white; text-decoration: none;">📅 Upcoming Only</a>
             {% else %}
             <a href="/matches?show_past=true" class="btn" style="background: #95a5a6; color: white; text-decoration: none;">📜 Show All Matches</a>
             {% endif %}
-            <a href="/matches/overview" class="btn" style="background: #667eea; color: white; text-decoration: none; padding: 12px 20px; font-size: 16px; font-weight: 600; border-radius: 8px; box-shadow: 0 2px 8px rgba(102,126,234,0.3);">
+            <a href="/matches/overview" class="btn" style="background: #003d7a; color: white; text-decoration: none; padding: 12px 20px; font-size: 16px; font-weight: 600; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,61,122,0.3);">
                 📋 View All Teams
             </a>
         </div>
     </div>
 
     <!-- Add Match Form -->
-    <div id="addMatchForm" style="display: none; background: #e3f2fd; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
-        <h3 style="color: #2c3e50; margin-bottom: 15px;">➕ Add New Match</h3>
+    <div id="addMatchForm" style="display: none; background: #e3f2fd; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #003d7a;">
+        <h3 style="color: #003d7a; margin-bottom: 15px;">➕ Add New Match</h3>
         <form method="POST" action="/matches/add">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
                 <div class="form-group">
@@ -188,8 +188,8 @@
     </div>
 
     <!-- Edit Match Form -->
-    <div id="editMatchForm" style="display: none; background: #fff3cd; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #f39c12;">
-        <h3 style="color: #2c3e50; margin-bottom: 15px;">✏️ Edit Match</h3>
+    <div id="editMatchForm" style="display: none; background: #fff3cd; border-radius: 12px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #d4af37;">
+        <h3 style="color: #003d7a; margin-bottom: 15px;">✏️ Edit Match</h3>
         <form method="POST" action="/matches/edit" id="editForm">
             <input type="hidden" id="edit_match_id" name="match_id">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px;">
@@ -215,7 +215,7 @@
 
     {% if matches %}
     <div class="summary-box">
-        <h3 style="color: #2c3e50; margin-bottom: 10px;">📊 Schedule Summary</h3>
+        <h3 style="color: #003d7a; margin-bottom: 10px;">📋 Schedule Summary</h3>
         <div class="stat">
             <strong>Total Matches:</strong> {{ matches|length }}
         </div>
@@ -223,11 +223,11 @@
             <strong>With Formations:</strong> {{ matches|selectattr('formation_id')|list|length }}
         </div>
         <div class="stat">
-            <strong>Pending:</strong> <span style="color: #e74c3c; font-weight: bold;">{{ matches|rejectattr('formation_id')|list|length }}</span>
+            <strong>Pending:</strong> <span style="color: #c41e3a; font-weight: bold;">{{ matches|rejectattr('formation_id')|list|length }}</span>
         </div>
     </div>
 
-    <h3 style="color: #2c3e50; margin-bottom: 15px;">
+    <h3 style="color: #003d7a; margin-bottom: 15px;">
         {% if show_past %}All Matches{% else %}Upcoming Matches{% endif %}
     </h3>
     
@@ -238,7 +238,7 @@
             <div class="match-opponent">⚽ vs {{ match.opponent }}</div>
             <div class="match-location">📍 {{ match.location or 'TBD' }}</div>
             {% if match.formation_name %}
-            <div style="margin-top: 8px; font-size: 13px; color: #27ae60;">
+            <div style="margin-top: 8px; font-size: 13px; color: #d4af37;">
                 ✅ Formation: <strong>{{ match.formation_name }}</strong>
             </div>
             {% endif %}
@@ -247,15 +247,15 @@
         <div class="match-actions">
             {% if match.formation_id %}
             <span class="status-badge ready">✅ Ready</span>
-            <a href="/formations/{{ match.formation_id }}/load" class="btn" style="background: #3498db;">📋 Edit Formation</a>
-            <a href="/formations/{{ match.formation_id }}/gameday" class="btn" style="background: #27ae60;">👁️ View Formation</a>
-            <a href="/formations/{{ match.formation_id }}/live" class="btn" style="background: #e74c3c;">🔴 Live</a>
+            <a href="/formations/{{ match.formation_id }}/load" class="btn" style="background: #003d7a;">📋 Edit Formation</a>
+            <a href="/formations/{{ match.formation_id }}/gameday" class="btn" style="background: #d4af37; color: #003d7a;">👁 View Formation</a>
+            <a href="/formations/{{ match.formation_id }}/live" class="btn" style="background: #c41e3a;">🔴 Live</a>
             <button onclick="shareMatchTeam(this, {{ match.id }})" class="btn" style="background: #25D366;" title="Share team on WhatsApp">📱 WhatsApp</button>
             {% else %}
             <span class="status-badge pending">⚠️ No Formation</span>
-            <a href="/pitch?match_id={{ match.id }}&match_name={{ match.match_date }} - vs {{ match.opponent }}" class="btn" style="background: #667eea;">📋 Create Formation</a>
+            <a href="/pitch?match_id={{ match.id }}&match_name={{ match.match_date }} - vs {{ match.opponent }}" class="btn" style="background: #003d7a;">📋 Create Formation</a>
             {% endif %}
-            <button onclick="editMatch({{ match.id }}, '{{ match.match_date }}', '{{ match.opponent }}', '{{ match.location or '' }}')" class="btn" style="background: #f39c12; padding: 8px 12px;">✏️</button>
+            <button onclick="editMatch({{ match.id }}, '{{ match.match_date }}', '{{ match.opponent }}', '{{ match.location or '' }}')" class="btn" style="background: #d4af37; color: #003d7a; padding: 8px 12px;">✏️</button>
             <button onclick="deleteMatch({{ match.id }})" class="btn btn-danger" style="padding: 8px 12px;">🗑️</button>
         </div>
     </div>
@@ -268,7 +268,7 @@
     {% endif %}
 
     <div class="bulk-upload-section" style="margin-top: 40px;">
-        <h3 style="color: #2c3e50; margin-bottom: 15px;">📤 Bulk Upload Matches</h3>
+        <h3 style="color: #003d7a; margin-bottom: 15px;">📄 Bulk Upload Matches</h3>
         <p style="color: #7f8c8d; font-size: 14px; margin-bottom: 10px;">
             Enter matches one per line in the format: <code>YYYY-MM-DD | Opponent | Location</code>
         </p>
@@ -396,30 +396,30 @@ async function shareMatchTeam(btn, matchId) {
         const dateStr = `${d}/${m}/${y}`;
 
         let html = `
-            <div style="text-align:center;padding-bottom:20px;margin-bottom:20px;border-bottom:3px solid #667eea;">
-                <div style="font-size:24px;font-weight:bold;color:#2c3e50;margin-bottom:8px;">⚽ vs ${data.opponent}</div>
+            <div style="text-align:center;padding-bottom:20px;margin-bottom:20px;border-bottom:3px solid #003d7a;">
+                <div style="font-size:24px;font-weight:bold;color:#003d7a;margin-bottom:8px;">⚽ vs ${data.opponent}</div>
                 <div style="font-size:16px;color:#7f8c8d;margin-bottom:4px;">📅 ${dateStr}</div>
                 <div style="font-size:16px;color:#7f8c8d;">📍 ${data.location}</div>
             </div>`;
 
         if (data.playing.length > 0) {
-            html += `<div style="background:#f0fff4;border:2px solid #27ae60;border-radius:10px;padding:15px;margin-bottom:15px;">
-                <div style="font-size:16px;font-weight:bold;color:#2c3e50;margin-bottom:12px;">✅ Playing (${data.playing.length})</div>
+            html += `<div style="background:#f0fff4;border:2px solid #d4af37;border-radius:10px;padding:15px;margin-bottom:15px;">
+                <div style="font-size:16px;font-weight:bold;color:#003d7a;margin-bottom:12px;">✅ Playing (${data.playing.length})</div>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">`;
             data.playing.forEach(p => {
                 const gk = p.position === 'GK' ? ' 🧤' : '';
-                html += `<span style="background:#27ae60;color:white;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;">${p.name}${gk}</span>`;
+                html += `<span style="background:#d4af37;color:#003d7a;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;">${p.name}${gk}</span>`;
             });
             html += `</div></div>`;
         }
 
         if (data.not_playing.length > 0) {
-            html += `<div style="background:#fff5f5;border:2px solid #e74c3c;border-radius:10px;padding:15px;">
-                <div style="font-size:16px;font-weight:bold;color:#c0392b;margin-bottom:12px;">❌ Not Playing (${data.not_playing.length})</div>
+            html += `<div style="background:#fff5f5;border:2px solid #c41e3a;border-radius:10px;padding:15px;">
+                <div style="font-size:16px;font-weight:bold;color:#c41e3a;margin-bottom:12px;">❌ Not Playing (${data.not_playing.length})</div>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">`;
             data.not_playing.forEach(p => {
                 const gk = p.position === 'GK' ? ' 🧤' : '';
-                html += `<span style="background:#c0392b;color:white;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;">${p.name}${gk}</span>`;
+                html += `<span style="background:#c41e3a;color:white;padding:8px 14px;border-radius:20px;font-size:13px;font-weight:600;">${p.name}${gk}</span>`;
             });
             html += `</div></div>`;
         }

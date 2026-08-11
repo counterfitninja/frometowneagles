@@ -8,8 +8,8 @@
         position: fixed;
         top: 80px;
         right: 20px;
-        background: #27ae60;
-        color: white;
+        background: #d4af37;
+        color: #003d7a;
         padding: 15px 25px;
         border-radius: 8px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
@@ -71,18 +71,18 @@
     }
 
     .formation-mini-card:hover {
-        border-color: #667eea;
+        border-color: #003d7a;
     }
 
     .formation-mini-card.active {
-        border-color: #27ae60;
+        border-color: #d4af37;
         background: #e8f5e9;
     }
 
     .formation-mini-card .mini-name {
         font-weight: bold;
         font-size: 12px;
-        color: #2c3e50;
+        color: #003d7a;
         margin-bottom: 5px;
     }
 
@@ -180,7 +180,7 @@
     }
 
     .player-item:hover {
-        background: #667eea;
+        background: #003d7a;
         color: white;
         transform: translateX(5px);
     }
@@ -269,7 +269,7 @@
         position: absolute;
         width: 60px;
         height: 60px;
-        background: #667eea;
+        background: #003d7a;
         border: 3px solid white;
         border-radius: 50%;
         display: flex;
@@ -308,7 +308,7 @@
         position: absolute;
         top: -5px;
         right: -5px;
-        background: #e74c3c;
+        background: #c41e3a;
         color: white;
         border-radius: 50%;
         width: 18px;
@@ -536,8 +536,8 @@
             <select id="formationSelect" onchange="changeFormation()" class="btn" style="grid-column: 1;">
                 <option value="0">Starting Lineup</option>
             </select>
-            <button onclick="addFormation()" class="btn" style="background: #27ae60;" title="Add Formation"><span class="btn-icon-mobile">➕</span><span class="btn-text-mobile"> Add Formation</span></button>
-            <button onclick="removeFormation()" class="btn" style="background: #e74c3c;" title="Remove Formation"><span class="btn-icon-mobile">➖</span><span class="btn-text-mobile"> Remove Formation</span></button>
+            <button onclick="addFormation()" class="btn" style="background: #d4af37; color: #003d7a;" title="Add Formation"><span class="btn-icon-mobile">➕</span><span class="btn-text-mobile"> Add Formation</span></button>
+            <button onclick="removeFormation()" class="btn" style="background: #c41e3a;" title="Remove Formation"><span class="btn-icon-mobile">➖</span><span class="btn-text-mobile"> Remove Formation</span></button>
             <button onclick="clearPitch()" class="btn btn-danger" title="Clear Pitch"><span class="btn-icon-mobile">🗑️</span> Clear</button>
         </div>
         
@@ -548,8 +548,8 @@
         
         <div style="display:flex; gap:10px; width:100%;">
             <button onclick="console.log('Button clicked!'); saveMatch();" class="btn btn-success" style="flex:1; font-weight: bold;">💾 Save Match</button>
-            <button onclick="viewGameDay()" class="btn" style="flex:1; font-weight:bold; background:#9b59b6;">🖨️ Game Day View</button>
-            <button onclick="viewLive()" class="btn" style="flex:1; font-weight:bold; background:#e74c3c;">🔴 Live</button>
+            <button onclick="viewGameDay()" class="btn" style="flex:1; font-weight:bold; background:#003d7a;">🖨️ Game Day View</button>
+            <button onclick="viewLive()" class="btn" style="flex:1; font-weight:bold; background:#c41e3a;">🔴 Live</button>
         </div>
     </div>
     
@@ -559,7 +559,7 @@
     
     <div class="formation-container">
         <div class="players-sidebar collapsed" id="playersSidebar">
-            <h3 style="margin-bottom: 15px; color: #2c3e50;" onclick="toggleSidebar()">
+            <h3 style="margin-bottom: 15px; color: #003d7a;" onclick="toggleSidebar()">
                 <span class="collapse-icon">▼</span>
                 <span>Not Playing</span>
             </h3>
@@ -569,7 +569,7 @@
                     {% set sc = sub_counts.get(player.id|string, 0) %}
                     <div class="player-item" draggable="true" data-id="{{ player.id }}" data-name="{{ player.name }}" data-position="{{ player.position }}" data-sub-count="{{ sc }}">
                         <div style="font-weight: bold;">{{ player.name }}</div>
-                        <div style="font-size: 12px; color: #7f8c8d;">{{ player.position }} - {% for i in range(player.rating) %}⭐{% endfor %}{% if sc > 0 %} &nbsp;·&nbsp; <span style="color:#e74c3c; font-weight:bold;">sub ×{{ sc }}</span>{% endif %}</div>
+                        <div style="font-size: 12px; color: #7f8c8d;">{{ player.position }} - {% for i in range(player.rating) %}⭐{% endfor %}{% if sc > 0 %} &nbsp;·&nbsp; <span style="color:#c41e3a; font-weight:bold;">sub ×{{ sc }}</span>{% endif %}</div>
                     </div>
                     {% endfor %}
                 {% else %}
@@ -589,8 +589,8 @@
         
         <div class="subs-bench">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                <h3 style="margin: 0; color: #2c3e50;">🪑 Substitutes Bench</h3>
-                <button onclick="addSubFromSidebar()" class="btn" style="padding: 4px 8px; font-size: 11px; background: #27ae60;">➕ Add Sub</button>
+                <h3 style="margin: 0; color: #003d7a;">🪑 Substitutes Bench</h3>
+                <button onclick="addSubFromSidebar()" class="btn" style="padding: 4px 8px; font-size: 11px; background: #d4af37; color: #003d7a;">➕ Add Sub</button>
             </div>
             <p style="font-size: 12px; color: #7f8c8d; margin-bottom: 10px;">Drag players here when not on pitch</p>
             <div class="bench-area" id="subsBench">
@@ -601,7 +601,7 @@
 
     <div class="formations-overview" id="formationsOverviewPanel">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-            <h3 style="margin:0; color: #2c3e50; font-size: 14px;">📋 Formations</h3>
+            <h3 style="margin:0; color: #003d7a; font-size: 14px;">📋 Formations</h3>
             <button onclick="shareFormation()" id="shareBtn" style="background:#25D366; color:white; border:none; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:6px;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.125.558 4.121 1.531 5.856L.057 23.943l6.263-1.643A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.014-1.378l-.36-.214-3.714.974.99-3.616-.235-.372A9.818 9.818 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182S21.818 6.57 21.818 12 17.43 21.818 12 21.818z"/></svg>
                 Share via WhatsApp
@@ -721,7 +721,7 @@
                 name: item.dataset.name,
                 position: item.dataset.position
             };
-            item.style.background = '#667eea';
+            item.style.background = '#003d7a';
             item.style.color = 'white';
             
             // Clear other selections
@@ -1413,14 +1413,14 @@
             html += `
                 <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; border: 2px solid #dee2e6;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <strong style="color: #2c3e50; font-size: 14px;">${save.name}</strong>
-                        <button onclick="deleteQuickSave(${index})" class="btn" style="background: #e74c3c; padding: 4px 8px; font-size: 11px;">🗑️</button>
+                        <strong style="color: #003d7a; font-size: 14px;">${save.name}</strong>
+                        <button onclick="deleteQuickSave(${index})" class="btn" style="background: #c41e3a; padding: 4px 8px; font-size: 11px;">🗑️</button>
                     </div>
                     <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 8px;">
                         ${save.players.length} players • ${save.subs.length} subs<br>
                         Saved: ${date}
                     </div>
-                    <button onclick="loadQuickSave(${index})" class="btn" style="background: #27ae60; width: 100%; padding: 8px;">⚡ Load</button>
+                    <button onclick="loadQuickSave(${index})" class="btn" style="background: #d4af37; color: #003d7a; width: 100%; padding: 8px;">⚡ Load</button>
                 </div>
             `;
         });
@@ -1799,19 +1799,19 @@
         const title = loadedMatchName || 'Team Formation';
         let cardsHtml = matchFormations.map(formation => {
             const playersHtml = formation.players.map(p => `
-                <div style="position:absolute;width:30px;height:30px;background:#667eea;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:bold;color:white;text-align:center;line-height:1.1;word-wrap:break-word;margin-left:-15px;margin-top:-15px;left:${p.xPercent}%;top:${p.yPercent}%;">
+                <div style="position:absolute;width:30px;height:30px;background:#003d7a;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:bold;color:white;text-align:center;line-height:1.1;word-wrap:break-word;margin-left:-15px;margin-top:-15px;left:${p.xPercent}%;top:${p.yPercent}%;">
                     ${p.name.split(' ')[0]}
                 </div>`).join('');
 
             const subsHtml = formation.subs.length ? `
                 <div style="background:#fff3cd;border:2px solid #ffc107;border-radius:8px;padding:8px;margin-top:10px;">
                     <div style="font-weight:bold;color:#856404;margin-bottom:5px;font-size:12px;">🪑 Substitutes</div>
-                    ${formation.subs.map(s => `<div style="font-size:11px;color:#2c3e50;padding:3px 0;border-bottom:1px solid #ffeaa7;">${s.name} (${s.position || 'N/A'})</div>`).join('')}
+                    ${formation.subs.map(s => `<div style="font-size:11px;color:#003d7a;padding:3px 0;border-bottom:1px solid #ffeaa7;">${s.name} (${s.position || 'N/A'})</div>`).join('')}
                 </div>` : '';
 
             return `
                 <div style="border:2px solid #ecf0f1;border-radius:12px;padding:15px;background:white;">
-                    <div style="font-size:16px;font-weight:bold;color:#2c3e50;text-align:center;border-bottom:2px solid #667eea;padding-bottom:8px;margin-bottom:12px;">${formation.name || 'Formation'}</div>
+                    <div style="font-size:16px;font-weight:bold;color:#003d7a;text-align:center;border-bottom:2px solid #003d7a;padding-bottom:8px;margin-bottom:12px;">${formation.name || 'Formation'}</div>
                     <div style="position:relative;background:linear-gradient(to right,#4a7c3a,#5a8c4a,#4a7c3a);border:2px solid white;border-radius:8px;height:200px;">
                         <div style="position:absolute;top:0;left:0;width:2px;height:100%;background:rgba(255,255,255,0.5);"></div>
                         <div style="position:absolute;top:50%;left:0;transform:translateY(-50%);width:40px;height:40px;border:2px solid rgba(255,255,255,0.5);border-radius:50%;border-left:none;"></div>
@@ -1824,7 +1824,7 @@
 
         document.getElementById('sharePanel').innerHTML = `
             <div style="font-family:sans-serif;">
-                <h2 style="text-align:center;color:#2c3e50;margin-bottom:5px;">⚽ Frometown Eagles</h2>
+                <h2 style="text-align:center;color:#003d7a;margin-bottom:5px;">⚽ Frometown Eagles</h2>
                 <p style="text-align:center;color:#7f8c8d;margin-bottom:20px;font-size:13px;">${title} | Under-12 | 9-a-side</p>
                 <div style="display:grid;grid-template-columns:repeat(${Math.min(matchFormations.length, 2)},1fr);gap:20px;">
                     ${cardsHtml}

@@ -4,8 +4,8 @@
     "description": "Manage your under-12 football team formations",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#667eea",
-    "theme_color": "#2c3e50",
+    "background_color": "#003d7a",
+    "theme_color": "#003d7a",
     "orientation": "any",
     "icons": [
         {
