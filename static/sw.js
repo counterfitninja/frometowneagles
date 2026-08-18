@@ -3,6 +3,7 @@ const CACHE_NAME = 'football-manager-v' + new Date().toISOString().slice(0,13).r
 const urlsToCache = [
     '/',
     '/static/manifest.json',
+    '/static/design-language.css',
     '/static/icon-192.png',
     '/static/icon-512.png',
     '/players',

@@ -1,0 +1,193 @@
+/* Frome Town Eagles design language
+   Source samples: sample-03-parent-share-card, sample-04-fixtures-dark-standard, sample-05-team-generator-dark-standard. */
+:root {
+    --fte-dugout: #1e1f28;
+    --fte-dugout-deep: #111217;
+    --fte-panel: #252731;
+    --fte-panel-raised: #2b2e39;
+    --fte-slate: #364b64;
+    --fte-slate-2: #2d3443;
+    --fte-paper: #efe5d8;
+    --fte-paper-fresh: #f7efe5;
+    --fte-paper-line: #d2c5b6;
+    --fte-muted: #756d66;
+    --fte-red: #c41e3a;
+    --fte-red-deep: #8f172b;
+    --fte-gold: #d4af37;
+    --fte-gold-deep: #aa8622;
+    --fte-pitch: #39583c;
+    --fte-focus: #f1d16a;
+
+    --ink: var(--fte-dugout);
+    --panel: var(--fte-panel);
+    --panel-2: var(--fte-slate-2);
+    --paper: var(--fte-paper);
+    --paper-2: var(--fte-paper-fresh);
+    --line: var(--fte-paper-line);
+    --muted: var(--fte-muted);
+    --red: var(--fte-red);
+    --red-dark: var(--fte-red-deep);
+    --gold: var(--fte-gold);
+    --gold-dark: var(--fte-gold-deep);
+    --green: var(--fte-pitch);
+    --focus: var(--fte-focus);
+}
+
+html {
+    background: var(--fte-dugout);
+}
+
+body {
+    background: var(--fte-dugout) !important;
+    color: var(--fte-paper);
+    font-family: "Aptos", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+
+.header,
+.card,
+.match-card,
+.match-overview-card,
+.upcoming-card,
+.no-matches,
+.generator-section,
+.team-card,
+.stats-box,
+.stat-item,
+.bulk-upload-section,
+.formation-card,
+.formations-overview,
+.players-sidebar,
+.subs-bench {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.header,
+.card,
+.match-card,
+.match-overview-card,
+.upcoming-card,
+.no-matches {
+    background: var(--fte-paper) !important;
+    color: var(--fte-dugout) !important;
+    border: 1px solid var(--fte-paper-line) !important;
+}
+
+.header {
+    border-left: 8px solid var(--fte-red) !important;
+}
+
+.card h1,
+.card h2,
+.card h3,
+.header h1,
+.match-title,
+.team-title,
+.formation-title {
+    font-family: Georgia, "Times New Roman", serif !important;
+    letter-spacing: -0.045em;
+}
+
+.btn,
+.nav-btn,
+button,
+.status-badge,
+.count-badge,
+.player-chip,
+.player-badge,
+.upcoming-badge,
+.sub-player,
+.player-item,
+.formation-mini-card {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.btn,
+.nav-btn {
+    background: var(--fte-panel) !important;
+    border: 1px solid var(--fte-panel-raised) !important;
+    color: var(--fte-paper) !important;
+    font-weight: 750;
+}
+
+.btn:hover,
+.nav-btn:hover {
+    background: var(--fte-red) !important;
+    border-color: var(--fte-red) !important;
+}
+
+.btn-success,
+.nav-btn.login,
+.status-badge.ready,
+.count-badge,
+.player-chip,
+.player-badge.goalkeeper,
+.home-tile.is-gold {
+    background: var(--fte-gold) !important;
+    border-color: var(--fte-gold) !important;
+    color: var(--fte-dugout) !important;
+}
+
+.btn-danger,
+.status-badge.pending,
+.count-badge.red,
+.player-chip.not-playing,
+.home-tile.is-red {
+    background: var(--fte-red) !important;
+    border-color: var(--fte-red-deep) !important;
+    color: var(--fte-paper) !important;
+}
+
+.team-section.playing,
+.match-card.has-formation,
+.summary-box,
+.stats-box,
+.generator-section,
+.bulk-upload-section {
+    background: var(--fte-paper-fresh) !important;
+    border-color: var(--fte-gold) !important;
+}
+
+.team-section.not-playing,
+.match-card.no-formation {
+    background: #f2dfdf !important;
+    border-color: var(--fte-red) !important;
+}
+
+.pitch,
+.pitch-container,
+.mini-pitch {
+    background: var(--fte-pitch) !important;
+    border-color: var(--fte-paper) !important;
+}
+
+input,
+select,
+textarea {
+    background: var(--fte-paper-fresh) !important;
+    border: 1px solid var(--fte-paper-line) !important;
+    border-radius: 0 !important;
+    color: var(--fte-dugout) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--fte-red) !important;
+}
+
+:focus-visible {
+    outline: 3px solid var(--fte-focus) !important;
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+    }
+}
