@@ -300,6 +300,8 @@
     <div class="log-section">
         <div class="log-title">Goals</div>
         <div id="log"></div>
+        <div class="log-title" style="margin-top: 18px;">Man of the match</div>
+        <button class="share-btn" id="motmButton" onclick="openMotmPicker()">Choose player</button>
         <button class="share-btn" onclick="shareSummary()">📱 Share Summary</button>
     </div>
 
@@ -315,6 +317,7 @@
     const FORMATION_ID = {{ formation_id }};
     const OPPONENT     = {{ opponent | tojson }};
     const SQUAD        = {{ squad_json | safe }};
+    const SERVER_STATE = {{ saved_state_json | safe }};
     const STATE_KEY    = 'matchDay_' + FORMATION_ID;
 
     let state = loadState();
@@ -328,16 +331,51 @@
                 if (Array.isArray(parsed.goals)) return parsed;
             }
         } catch (e) {}
-        return { goals: [], opponentGoals: 0 };
+        return {
+            goals: Array.isArray(SERVER_STATE.goals) ? SERVER_STATE.goals : [],
+            opponentGoals: Number(SERVER_STATE.opponentGoals) || 0,
+            motmPlayerId: SERVER_STATE.motmPlayerId || null
+        };
     }
 
     function saveState() {
         localStorage.setItem(STATE_KEY, JSON.stringify(state));
+        syncResult();
+    }
+
+    async function syncResult() {
+        const goals = state.goals.map(goal => {
+            const scorer = SQUAD.find(player => player.name === goal.scorer);
+            const assist = goal.assist ? SQUAD.find(player => player.name === goal.assist) : null;
+            return {
+                scorer_id: scorer ? scorer.id : null,
+                scorer: goal.scorer,
+                assist_id: assist ? assist.id : null,
+                assist: goal.assist || null,
+                at: goal.at
+            };
+        });
+
+        if (goals.some(goal => !goal.scorer_id)) return;
+        try {
+            const response = await fetch('/api/matches/{{ match_id }}/result', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    goals,
+                    opponentGoals: state.opponentGoals,
+                    motmPlayerId: state.motmPlayerId || null
+                })
+            });
+            if (!response.ok) throw new Error('Result upload failed');
+        } catch (e) {}
     }
 
     function render() {
         document.getElementById('usScore').textContent = state.goals.length;
         document.getElementById('themScore').textContent = state.opponentGoals;
+        const motm = SQUAD.find(player => String(player.id) === String(state.motmPlayerId));
+        document.getElementById('motmButton').textContent = motm ? '⭐ ' + motm.name : 'Choose player';
 
         const log = document.getElementById('log');
         log.innerHTML = '';
@@ -384,6 +422,16 @@
             pendingScorer = name;
             openAssistModal();
         });
+    }
+
+    function openMotmPicker() {
+        showPicker('Who was man of the match?', name => {
+            const player = SQUAD.find(candidate => candidate.name === name);
+            state.motmPlayerId = player ? String(player.id) : null;
+            closePicker();
+            saveState();
+            render();
+        }, false);
     }
 
     function openAssistModal() {
@@ -440,7 +488,7 @@
 
     function resetMatch() {
         if (!confirm('Clear the score and all goals for this match?')) return;
-        state = { goals: [], opponentGoals: 0 };
+        state = { goals: [], opponentGoals: 0, motmPlayerId: null };
         saveState();
         render();
     }
@@ -474,6 +522,7 @@
 
     window.addEventListener('online', updateOfflineBadge);
     window.addEventListener('offline', updateOfflineBadge);
+    window.addEventListener('online', syncResult);
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/static/sw.js').catch(() => {});

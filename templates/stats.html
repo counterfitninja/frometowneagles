@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player League Table - {{ team_title }}</title>
+    <link rel="stylesheet" href="/static/design-language.css?v=20260818-rounded">
+    <style>
+        body { background: #1e1f28; color: #efe5d8; padding: 24px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        header { background: #efe5d8; color: #1e1f28; border-left: 8px solid #c41e3a; padding: 24px; margin-bottom: 18px; }
+        h1, h2 { font-family: Georgia, "Times New Roman", serif; }
+        h1 { font-size: clamp(30px, 5vw, 52px); line-height: 1; margin-bottom: 10px; }
+        .nav { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+        .nav a { background: #252731; color: #efe5d8; padding: 10px 14px; text-decoration: none; font-weight: 700; }
+        .nav a:hover { background: #c41e3a; }
+        .panel { background: #efe5d8; color: #1e1f28; padding: 24px; margin-bottom: 18px; }
+        .totals { display: flex; gap: 24px; flex-wrap: wrap; margin: 16px 0 24px; }
+        .total strong { display: block; font-size: 28px; color: #c41e3a; }
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 520px; }
+        th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #d2c5b6; }
+        th { background: #252731; color: #efe5d8; font-size: 12px; text-transform: uppercase; }
+        td:not(:first-child), th:not(:first-child) { text-align: center; }
+        .matches { display: grid; gap: 8px; }
+        .match { display: flex; justify-content: space-between; gap: 12px; padding: 12px; background: #f7efe5; }
+        .motm { color: #c41e3a; font-weight: 700; }
+        @media (max-width: 600px) { body { padding: 12px; } .panel { padding: 16px; } .match { flex-direction: column; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Player League Table</h1>
+        <p>{{ team_title }}</p>
+        <nav class="nav">
+            <a href="/public/next-match">Next match</a>
+            <a href="/public/overview">All matches</a>
+            <a href="/login">Manager login</a>
+        </nav>
+    </header>
+
+    <section class="panel">
+        <h2>Season totals</h2>
+        <div class="totals">
+            <div class="total"><strong>{{ totals.goals }}</strong>Goals</div>
+            <div class="total"><strong>{{ totals.assists }}</strong>Assists</div>
+            <div class="total"><strong>{{ totals.motm }}</strong>Man of the match awards</div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Player</th><th>Position</th><th>Goals</th><th>Assists</th><th>MOTM</th></tr></thead>
+                <tbody>
+                {% for player in leaderboard %}
+                    <tr><td>{{ player.name }}</td><td>{{ player.position or '-' }}</td><td>{{ player.goals }}</td><td>{{ player.assists }}</td><td>{{ player.motm }}</td></tr>
+                {% else %}
+                    <tr><td colspan="5">No player statistics recorded yet.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Results</h2>
+        <div class="matches">
+        {% for match in matches %}
+            <div class="match"><span>{{ match.match_date | ukdate }} · Eagles {{ match.our_goals }}-{{ match.opponent_goals }} {{ match.opponent }}</span>{% if match.motm_name %}<span class="motm">⭐ {{ match.motm_name }}</span>{% endif %}</div>
+        {% else %}
+            <p>No results recorded yet.</p>
+        {% endfor %}
+        </div>
+    </section>
+</div>
+</body>
+</html>

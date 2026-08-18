@@ -78,6 +78,18 @@ def init_db():
                 FOREIGN KEY (formation_id) REFERENCES formations(id)
             )
         ''')
+
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS match_results (
+                match_id INTEGER PRIMARY KEY,
+                goals_json TEXT NOT NULL DEFAULT '[]',
+                opponent_goals INTEGER NOT NULL DEFAULT 0,
+                motm_player_id INTEGER,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+                FOREIGN KEY (motm_player_id) REFERENCES players(id)
+            )
+        ''')
         
         conn.execute('''
             CREATE TABLE IF NOT EXISTS settings (
@@ -199,6 +211,113 @@ def players():
     with get_db() as conn:
         players_list = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
     return render_template('players.html', players=players_list, version=VERSION)
+
+@app.route('/stats')
+@app.route('/public/stats')
+def stats():
+    import json
+    from collections import defaultdict
+
+    with get_db() as conn:
+        players_list = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
+        results = conn.execute('''
+            SELECT mr.*, m.match_date, m.opponent, m.location, p.name as motm_name
+            FROM match_results mr
+            JOIN matches m ON m.id = mr.match_id
+            LEFT JOIN players p ON p.id = mr.motm_player_id
+            ORDER BY m.match_date DESC, m.id DESC
+        ''').fetchall()
+
+    players_by_id = {str(player['id']): dict(player) for player in players_list}
+    players_by_name = {player['name']: dict(player) for player in players_list}
+    player_stats = defaultdict(lambda: {
+        'id': None,
+        'name': 'Unknown',
+        'position': '',
+        'goals': 0,
+        'assists': 0,
+        'motm': 0
+    })
+
+    for player in players_list:
+        player_id = str(player['id'])
+        player_stats[player_id].update({
+            'id': player['id'],
+            'name': player['name'],
+            'position': player['position'] or ''
+        })
+
+    matches_with_results = []
+    total_goals = 0
+    total_assists = 0
+
+    for result in results:
+        try:
+            goals = json.loads(result['goals_json'] or '[]')
+        except json.JSONDecodeError:
+            goals = []
+
+        for goal in goals:
+            scorer_key = str(goal.get('scorer_id') or '')
+            if not scorer_key and goal.get('scorer') in players_by_name:
+                scorer_key = str(players_by_name[goal['scorer']]['id'])
+
+            if scorer_key:
+                player = players_by_id.get(scorer_key)
+                if player:
+                    player_stats[scorer_key].update({
+                        'id': player['id'],
+                        'name': player['name'],
+                        'position': player['position'] or ''
+                    })
+                player_stats[scorer_key]['goals'] += 1
+                total_goals += 1
+
+            assist_key = str(goal.get('assist_id') or '')
+            if not assist_key and goal.get('assist') in players_by_name:
+                assist_key = str(players_by_name[goal['assist']]['id'])
+
+            if assist_key:
+                player = players_by_id.get(assist_key)
+                if player:
+                    player_stats[assist_key].update({
+                        'id': player['id'],
+                        'name': player['name'],
+                        'position': player['position'] or ''
+                    })
+                player_stats[assist_key]['assists'] += 1
+                total_assists += 1
+
+        if result['motm_player_id']:
+            motm_key = str(result['motm_player_id'])
+            if motm_key in players_by_id:
+                player_stats[motm_key]['motm'] += 1
+
+        matches_with_results.append({
+            'match_date': result['match_date'],
+            'opponent': result['opponent'],
+            'location': result['location'] or 'TBD',
+            'our_goals': len(goals),
+            'opponent_goals': result['opponent_goals'],
+            'motm_name': result['motm_name'],
+            'has_result': bool(goals or result['opponent_goals'] or result['motm_player_id'])
+        })
+
+    leaderboard = sorted(
+        player_stats.values(),
+        key=lambda stat: (-stat['goals'], -stat['assists'], -stat['motm'], stat['name'])
+    )
+
+    return render_template('stats.html',
+                           leaderboard=leaderboard,
+                           matches=matches_with_results,
+                           team_title=get_setting('team_title', 'Under-12 Football Manager'),
+                           totals={
+                               'goals': total_goals,
+                               'assists': total_assists,
+                               'motm': sum(1 for match in matches_with_results if match['motm_name'])
+                           },
+                           version=VERSION)
 
 @app.route('/players/add', methods=['POST'])
 @login_required
@@ -453,9 +572,11 @@ def matchday_view(formation_id):
     import json as _json
     with get_db() as conn:
         row = conn.execute('''
-            SELECT f.*, m.opponent, m.match_date, m.location
+            SELECT f.*, m.id as match_id, m.opponent, m.match_date, m.location,
+                   mr.goals_json, mr.opponent_goals, mr.motm_player_id
             FROM formations f
             LEFT JOIN matches m ON m.formation_id = f.id
+            LEFT JOIN match_results mr ON mr.match_id = m.id
             WHERE f.id = ?
         ''', (formation_id,)).fetchone()
 
@@ -492,13 +613,93 @@ def matchday_view(formation_id):
             match_date_display = row['match_date']
 
     return render_template('matchday.html',
+                           match_id=row['match_id'],
                            formation_id=formation_id,
                            formation_name=row['name'],
                            squad_json=_json.dumps(squad),
+                           saved_state_json=_json.dumps({
+                               'goals': _json.loads(row['goals_json'] or '[]'),
+                               'opponentGoals': row['opponent_goals'] or 0,
+                               'motmPlayerId': str(row['motm_player_id']) if row['motm_player_id'] else None
+                           }),
                            opponent=row['opponent'] or 'Opponent',
                            match_date_display=match_date_display,
                            location=row['location'] or '',
                            version=VERSION)
+
+@app.route('/api/matches/<int:match_id>/result', methods=['GET', 'POST'])
+@login_required
+def api_match_result(match_id):
+    import json
+
+    with get_db() as conn:
+        match = conn.execute('SELECT id FROM matches WHERE id = ?', (match_id,)).fetchone()
+        if not match:
+            return jsonify({'error': 'Match not found'}), 404
+
+        if request.method == 'GET':
+            result = conn.execute('SELECT * FROM match_results WHERE match_id = ?', (match_id,)).fetchone()
+            if not result:
+                return jsonify({'goals': [], 'opponentGoals': 0, 'motmPlayerId': None})
+            return jsonify({
+                'goals': json.loads(result['goals_json'] or '[]'),
+                'opponentGoals': result['opponent_goals'],
+                'motmPlayerId': str(result['motm_player_id']) if result['motm_player_id'] else None
+            })
+
+        data = request.get_json(silent=True) or {}
+        raw_goals = data.get('goals', [])
+        if not isinstance(raw_goals, list):
+            return jsonify({'error': 'Goals must be a list'}), 400
+
+        goals = []
+        for goal in raw_goals:
+            if not isinstance(goal, dict):
+                return jsonify({'error': 'Each goal must be an object'}), 400
+
+            scorer_id = goal.get('scorer_id')
+            scorer_name = (goal.get('scorer') or '').strip()
+            if not scorer_id or not scorer_name:
+                return jsonify({'error': 'Each goal needs a scorer'}), 400
+            if not conn.execute('SELECT id FROM players WHERE id = ?', (scorer_id,)).fetchone():
+                return jsonify({'error': 'Goal scorer not found'}), 400
+
+            assist_id = goal.get('assist_id')
+            assist_name = (goal.get('assist') or '').strip() or None
+            if assist_id and not conn.execute('SELECT id FROM players WHERE id = ?', (assist_id,)).fetchone():
+                return jsonify({'error': 'Assist player not found'}), 400
+            goals.append({
+                'scorer_id': str(scorer_id),
+                'scorer': scorer_name,
+                'assist_id': str(assist_id) if assist_id else None,
+                'assist': assist_name,
+                'at': goal.get('at')
+            })
+
+        try:
+            opponent_goals = int(data.get('opponentGoals', 0))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Opponent goals must be a number'}), 400
+        opponent_goals = max(0, opponent_goals)
+
+        motm_player_id = data.get('motmPlayerId') or None
+        if motm_player_id:
+            motm_player = conn.execute('SELECT id FROM players WHERE id = ?', (motm_player_id,)).fetchone()
+            if not motm_player:
+                return jsonify({'error': 'Man of the match player not found'}), 400
+
+        conn.execute('''
+            INSERT INTO match_results (match_id, goals_json, opponent_goals, motm_player_id, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(match_id) DO UPDATE SET
+                goals_json = excluded.goals_json,
+                opponent_goals = excluded.opponent_goals,
+                motm_player_id = excluded.motm_player_id,
+                updated_at = CURRENT_TIMESTAMP
+        ''', (match_id, json.dumps(goals), opponent_goals, motm_player_id))
+        conn.commit()
+
+    return jsonify({'success': True})
 
 @app.route('/matches')
 @login_required
