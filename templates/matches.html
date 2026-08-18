@@ -250,6 +250,7 @@
             <a href="/formations/{{ match.formation_id }}/load" class="btn" style="background: #003d7a;">📋 Edit Formation</a>
             <a href="/formations/{{ match.formation_id }}/gameday" class="btn" style="background: #d4af37; color: #003d7a;">👁 View Formation</a>
             <a href="/formations/{{ match.formation_id }}/live" class="btn" style="background: #c41e3a;">🔴 Live</a>
+            <a href="/formations/{{ match.formation_id }}/matchday" class="btn" style="background: #2ecc71; color: #003d7a;">⚽ Match Day</a>
             <button onclick="shareMatchTeam(this, {{ match.id }})" class="btn" style="background: #25D366;" title="Share team on WhatsApp">📱 WhatsApp</button>
             {% else %}
             <span class="status-badge pending">⚠️ No Formation</span>

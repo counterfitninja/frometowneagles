@@ -447,6 +447,59 @@ def live_view(formation_id):
         print(f"Error loading live view {formation_id}: {str(e)}")
         return f"Error loading live view: {str(e)}", 500
 
+@app.route('/formations/<int:formation_id>/matchday')
+@login_required
+def matchday_view(formation_id):
+    import json as _json
+    with get_db() as conn:
+        row = conn.execute('''
+            SELECT f.*, m.opponent, m.match_date, m.location
+            FROM formations f
+            LEFT JOIN matches m ON m.formation_id = f.id
+            WHERE f.id = ?
+        ''', (formation_id,)).fetchone()
+
+    if not row:
+        return redirect(url_for('formations'))
+
+    try:
+        data = _json.loads(row['data'])
+    except Exception as e:
+        print(f"Error loading match day {formation_id}: {str(e)}")
+        return f"Error loading match day: {str(e)}", 500
+
+    # Flatten every formation's players + subs into one squad list (unique by id)
+    squad = []
+    seen = set()
+    for formation in data.get('formations', []):
+        for player in list(formation.get('players', [])) + list(formation.get('subs', [])):
+            pid = str(player.get('id'))
+            if pid in seen:
+                continue
+            seen.add(pid)
+            squad.append({
+                'id': pid,
+                'name': player.get('name', 'Unknown'),
+                'position': player.get('position', '')
+            })
+    squad.sort(key=lambda p: p['name'])
+
+    match_date_display = ''
+    if row['match_date']:
+        try:
+            match_date_display = datetime.strptime(row['match_date'], '%Y-%m-%d').strftime('%a %d %b %Y')
+        except Exception:
+            match_date_display = row['match_date']
+
+    return render_template('matchday.html',
+                           formation_id=formation_id,
+                           formation_name=row['name'],
+                           squad_json=_json.dumps(squad),
+                           opponent=row['opponent'] or 'Opponent',
+                           match_date_display=match_date_display,
+                           location=row['location'] or '',
+                           version=VERSION)
+
 @app.route('/matches')
 @login_required
 def matches():
