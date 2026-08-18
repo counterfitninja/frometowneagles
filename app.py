@@ -627,6 +627,48 @@ def matchday_view(formation_id):
                            location=row['location'] or '',
                            version=VERSION)
 
+@app.route('/matches/<int:match_id>/result')
+@login_required
+def match_result_view(match_id):
+    """Record goals/assists/MOTM for a match that has no formation attached."""
+    import json as _json
+    with get_db() as conn:
+        row = conn.execute('''
+            SELECT m.*, mr.goals_json, mr.opponent_goals, mr.motm_player_id
+            FROM matches m
+            LEFT JOIN match_results mr ON mr.match_id = m.id
+            WHERE m.id = ?
+        ''', (match_id,)).fetchone()
+
+        if not row:
+            return redirect(url_for('matches'))
+
+        players_list = conn.execute('SELECT id, name, position FROM players ORDER BY name').fetchall()
+
+    squad = [{'id': str(p['id']), 'name': p['name'], 'position': p['position'] or ''} for p in players_list]
+
+    match_date_display = ''
+    if row['match_date']:
+        try:
+            match_date_display = datetime.strptime(row['match_date'], '%Y-%m-%d').strftime('%a %d %b %Y')
+        except Exception:
+            match_date_display = row['match_date']
+
+    return render_template('matchday.html',
+                           match_id=row['id'],
+                           formation_id='match-' + str(row['id']),
+                           formation_name='vs ' + (row['opponent'] or 'Opponent'),
+                           squad_json=_json.dumps(squad),
+                           saved_state_json=_json.dumps({
+                               'goals': _json.loads(row['goals_json'] or '[]'),
+                               'opponentGoals': row['opponent_goals'] or 0,
+                               'motmPlayerId': str(row['motm_player_id']) if row['motm_player_id'] else None
+                           }),
+                           opponent=row['opponent'] or 'Opponent',
+                           match_date_display=match_date_display,
+                           location=row['location'] or '',
+                           version=VERSION)
+
 @app.route('/api/matches/<int:match_id>/result', methods=['GET', 'POST'])
 @login_required
 def api_match_result(match_id):

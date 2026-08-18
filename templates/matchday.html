@@ -314,7 +314,7 @@
     </div>
 
 <script>
-    const FORMATION_ID = {{ formation_id }};
+    const FORMATION_ID = {{ formation_id | tojson }};
     const OPPONENT     = {{ opponent | tojson }};
     const SQUAD        = {{ squad_json | safe }};
     const SERVER_STATE = {{ saved_state_json | safe }};

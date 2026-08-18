@@ -255,6 +255,7 @@
             {% else %}
             <span class="status-badge pending">⚠️ No Formation</span>
             <a href="/pitch?match_id={{ match.id }}&match_name={{ match.match_date }} - vs {{ match.opponent }}" class="btn" style="background: #1e1f28;">📋 Create Formation</a>
+            <a href="/matches/{{ match.id }}/result" class="btn" style="background: #2ecc71; color: #1e1f28;">⚽ Record Result</a>
             {% endif %}
             <button onclick="editMatch({{ match.id }}, '{{ match.match_date }}', '{{ match.opponent }}', '{{ match.location or '' }}')" class="btn" style="background: #d4af37; color: #1e1f28; padding: 8px 12px;">✏️</button>
             <button onclick="deleteMatch({{ match.id }})" class="btn btn-danger" style="padding: 8px 12px;">🗑️</button>
