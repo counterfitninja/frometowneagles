@@ -17,6 +17,11 @@
         .panel { background: #efe5d8; color: #1e1f28; padding: 24px; margin-bottom: 18px; }
         .totals { display: flex; gap: 24px; flex-wrap: wrap; margin: 16px 0 24px; }
         .total strong { display: block; font-size: 28px; color: #c41e3a; }
+        .leaderboard-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0 14px; }
+        .leaderboard-tab { border: 0; background: #d2c5b6; color: #1e1f28; padding: 10px 14px; font: inherit; font-weight: 700; cursor: pointer; }
+        .leaderboard-tab[aria-selected="true"] { background: #c41e3a; color: #efe5d8; }
+        .leaderboard-tab:focus-visible { outline: 3px solid #1e1f28; outline-offset: 2px; }
+        .leaderboard-list[hidden] { display: none; }
         .table-wrap { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; min-width: 520px; }
         th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #d2c5b6; }
@@ -47,18 +52,28 @@
             <div class="total"><strong>{{ totals.assists }}</strong>Assists</div>
             <div class="total"><strong>{{ totals.motm }}</strong>Man of the match awards</div>
         </div>
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>Player</th><th>Position</th><th>Goals</th><th>Assists</th><th>MOTM</th></tr></thead>
-                <tbody>
-                {% for player in leaderboard %}
-                    <tr><td>{{ player.name }}</td><td>{{ player.position or '-' }}</td><td>{{ player.goals }}</td><td>{{ player.assists }}</td><td>{{ player.motm }}</td></tr>
-                {% else %}
-                    <tr><td colspan="5">No player statistics recorded yet.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
+        <div class="leaderboard-tabs" role="tablist" aria-label="Player leaderboard categories">
+            <button class="leaderboard-tab" id="goals-tab" role="tab" aria-controls="goals-list" aria-selected="true" type="button">Goals</button>
+            <button class="leaderboard-tab" id="assists-tab" role="tab" aria-controls="assists-list" aria-selected="false" type="button">Assists</button>
+            <button class="leaderboard-tab" id="motm-tab" role="tab" aria-controls="motm-list" aria-selected="false" type="button">MOTM</button>
         </div>
+
+        {% for list_id, tab_id, label, stat in [('goals-list', 'goals-tab', 'Goals', 'goals'), ('assists-list', 'assists-tab', 'Assists', 'assists'), ('motm-list', 'motm-tab', 'MOTM awards', 'motm')] %}
+        <div class="leaderboard-list" id="{{ list_id }}" role="tabpanel" aria-labelledby="{{ tab_id }}" {% if not loop.first %}hidden{% endif %}>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Player</th><th>Position</th><th>{{ label }}</th></tr></thead>
+                    <tbody>
+                    {% for player in leaderboard|sort(attribute=stat, reverse=true) %}
+                        <tr><td>{{ player.name }}</td><td>{{ player.position or '-' }}</td><td>{{ player[stat] }}</td></tr>
+                    {% else %}
+                        <tr><td colspan="3">No player statistics recorded yet.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
     </section>
 
     <section class="panel">
@@ -72,5 +87,17 @@
         </div>
     </section>
 </div>
+<script>
+    document.querySelectorAll('.leaderboard-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.leaderboard-tab').forEach(otherTab => {
+                otherTab.setAttribute('aria-selected', String(otherTab === tab));
+            });
+            document.querySelectorAll('.leaderboard-list').forEach(list => {
+                list.hidden = list.id !== tab.getAttribute('aria-controls');
+            });
+        });
+    });
+</script>
 </body>
 </html>
