@@ -213,7 +213,7 @@ def players():
     return render_template('players.html', players=players_list, version=VERSION)
 
 @app.route('/stats')
-@app.route('/public/stats')
+@login_required
 def stats():
     import json
     from collections import defaultdict
