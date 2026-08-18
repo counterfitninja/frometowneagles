@@ -5,16 +5,16 @@
 {% block content %}
 <div class="card">
     <h2>⚙️ Settings</h2>
-    <p style="color: #7f8c8d; margin-bottom: 30px;">Customize your team manager</p>
+    <p style="color: #756d66; margin-bottom: 30px;">Customize your team manager</p>
 
     {% if success %}
-    <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745;">
+    <div style="background: #d4edda; color: #155724; padding: 15px; border-radius: 0; margin-bottom: 20px; border-left: 4px solid #28a745;">
         ✅ {{ success }}
     </div>
     {% endif %}
 
     {% if error %}
-    <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #dc3545;">
+    <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 0; margin-bottom: 20px; border-left: 4px solid #dc3545;">
         ❌ {{ error }}
     </div>
     {% endif %}
@@ -28,7 +28,7 @@
                    value="{{ team_title }}" 
                    placeholder="e.g., Under-13 Football Manager"
                    required>
-            <p style="font-size: 13px; color: #7f8c8d; margin-top: 5px;">
+            <p style="font-size: 13px; color: #756d66; margin-top: 5px;">
                 This title appears throughout the app and on public pages
             </p>
         </div>
@@ -38,10 +38,10 @@
         </button>
     </form>
 
-    <hr style="margin: 40px 0; border: none; border-top: 2px solid #ecf0f1;">
+    <hr style="margin: 40px 0; border: none; border-top: 2px solid #d2c5b6;">
 
-    <h3 style="color: #003d7a; margin-bottom: 15px;">🔐 Change Admin Password</h3>
-    <p style="color: #7f8c8d; margin-bottom: 20px;">Update your admin password for enhanced security</p>
+    <h3 style="color: #1e1f28; margin-bottom: 15px;">🔐 Change Admin Password</h3>
+    <p style="color: #756d66; margin-bottom: 20px;">Update your admin password for enhanced security</p>
 
     <form method="POST" action="{{ url_for('change_password') }}" style="max-width: 600px;">
         <div class="form-group">
@@ -61,7 +61,7 @@
                    placeholder="Enter new password"
                    required
                    minlength="6">
-            <p style="font-size: 13px; color: #7f8c8d; margin-top: 5px;">
+            <p style="font-size: 13px; color: #756d66; margin-top: 5px;">
                 Minimum 6 characters
             </p>
         </div>
@@ -81,9 +81,9 @@
         </button>
     </form>
 
-    <div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
-        <h3 style="color: #003d7a; margin-bottom: 10px;">💡 Examples</h3>
-        <ul style="color: #7f8c8d; line-height: 2;">
+    <div style="margin-top: 40px; padding: 20px; background: #f7efe5; border-radius: 0; border-left: 4px solid #2d3443;">
+        <h3 style="color: #1e1f28; margin-bottom: 10px;">💡 Examples</h3>
+        <ul style="color: #756d66; line-height: 2;">
             <li>Under-13 Football Manager</li>
             <li>Eagles U12 Team Manager</li>
             <li>Junior Soccer Team</li>

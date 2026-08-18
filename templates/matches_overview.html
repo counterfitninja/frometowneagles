@@ -12,9 +12,9 @@
 
     .match-overview-card {
         background: white;
-        border-radius: 12px;
+        border-radius: 0;
         padding: 20px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border: 1px solid #d2c5b6;
     }
 
     .match-header {
@@ -23,40 +23,40 @@
         align-items: center;
         padding-bottom: 15px;
         margin-bottom: 15px;
-        border-bottom: 2px solid #003d7a;
+        border-bottom: 2px solid #1e1f28;
     }
 
     .match-title {
         font-size: 20px;
         font-weight: bold;
-        color: #003d7a;
+        color: #1e1f28;
     }
 
     .match-date {
         font-size: 14px;
-        color: #7f8c8d;
+        color: #756d66;
     }
 
     .team-section {
         margin-bottom: 20px;
         padding: 15px;
-        border-radius: 8px;
+        border-radius: 0;
     }
 
     .team-section.playing {
-        background: #f0fff4;
+        background: #f7efe5;
         border: 2px solid #d4af37;
     }
 
     .team-section.not-playing {
-        background: #fff5f5;
+        background: #f2dfdf;
         border: 2px solid #c41e3a;
     }
 
     .section-title {
         font-size: 18px;
         font-weight: bold;
-        color: #003d7a;
+        color: #1e1f28;
         margin-bottom: 12px;
         display: flex;
         align-items: center;
@@ -75,13 +75,13 @@
 
     .player-chip {
         background: #d4af37;
-        color: #003d7a;
+        color: #1e1f28;
         padding: 8px 14px;
-        border-radius: 20px;
+        border-radius: 0;
         font-size: 14px;
         text-align: center;
         font-weight: 600;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        
     }
 
     .player-chip.not-playing {
@@ -91,9 +91,9 @@
 
     .count-badge {
         background: #d4af37;
-        color: #003d7a;
+        color: #1e1f28;
         padding: 4px 10px;
-        border-radius: 12px;
+        border-radius: 0;
         font-size: 13px;
         font-weight: bold;
     }
@@ -104,11 +104,11 @@
     }
 
     .print-button {
-        background: #003d7a;
+        background: #1e1f28;
         color: white;
         border: none;
         padding: 10px 20px;
-        border-radius: 8px;
+        border-radius: 0;
         cursor: pointer;
         font-size: 14px;
         font-weight: 600;
@@ -116,7 +116,7 @@
     }
 
     .print-button:hover {
-        background: #001f4d;
+        background: #252731;
     }
 
     @media print {
@@ -143,13 +143,13 @@
             page-break-inside: avoid;
             break-inside: avoid;
             margin-bottom: 25px;
-            border: 2px solid #003d7a;
+            border: 2px solid #1e1f28;
             box-shadow: none;
             padding: 15px;
         }
         
         .match-header {
-            border-bottom: 3px solid #003d7a;
+            border-bottom: 3px solid #1e1f28;
             margin-bottom: 15px;
             padding-bottom: 10px;
         }
@@ -162,7 +162,7 @@
         
         .match-date {
             font-size: 16px;
-            color: #003d7a;
+            color: #1e1f28;
             font-weight: 600;
         }
         
@@ -217,7 +217,7 @@
             color: #000;
             text-align: center;
             margin-bottom: 25px;
-            border-bottom: 4px solid #003d7a;
+            border-bottom: 4px solid #1e1f28;
             padding-bottom: 15px;
             font-weight: 900;
         }
@@ -234,11 +234,11 @@
 {% block content %}
 <div class="card">
     <h2>📋 All Matches Overview</h2>
-    <p style="color: #7f8c8d; margin-bottom: 20px;">View all upcoming matches with team selections</p>
+    <p style="color: #756d66; margin-bottom: 20px;">View all upcoming matches with team selections</p>
 
     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
         <button onclick="window.print()" class="print-button">🖨️ Print Overview</button>
-        <a href="/matches/overview/text" target="_blank" class="print-button" style="display: inline-block; text-decoration: none; background: #d4af37; color: #003d7a;">💬 WhatsApp Text</a>
+        <a href="/matches/overview/text" target="_blank" class="print-button" style="display: inline-block; text-decoration: none; background: #d4af37; color: #1e1f28;">💬 WhatsApp Text</a>
     </div>
 
     {% if matches %}
@@ -285,34 +285,34 @@
             {% endif %}
 
             {% if not match.playing and not match.not_playing %}
-            <p style="color: #7f8c8d; text-align: center; font-style: italic;">No team selected for this match</p>
+            <p style="color: #756d66; text-align: center; font-style: italic;">No team selected for this match</p>
             {% endif %}
         </div>
         {% endfor %}
     </div>
     {% else %}
-    <div style="text-align: center; padding: 40px; color: #7f8c8d;">
+    <div style="text-align: center; padding: 40px; color: #756d66;">
         <p>No matches with teams found.</p>
-        <p style="margin-top: 10px;"><a href="/matches" style="color: #003d7a;">Go to Matches</a> to create teams.</p>
+        <p style="margin-top: 10px;"><a href="/matches" style="color: #1e1f28;">Go to Matches</a> to create teams.</p>
     </div>
     {% endif %}
 
     {% if player_stats %}
     <div class="match-overview-card" style="margin-top: 30px;">
-        <h3 style="color: #003d7a; margin-bottom: 20px; text-align: center; font-size: 24px;">📋 Player Statistics Across All Matches</h3>
+        <h3 style="color: #1e1f28; margin-bottom: 20px; text-align: center; font-size: 24px;">📋 Player Statistics Across All Matches</h3>
         <table style="width: 100%; border-collapse: collapse;">
             <thead>
-                <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-                    <th style="padding: 12px; text-align: left; font-weight: bold; color: #003d7a;">Player</th>
+                <tr style="background: #f7efe5; border-bottom: 2px solid #d2c5b6;">
+                    <th style="padding: 12px; text-align: left; font-weight: bold; color: #1e1f28;">Player</th>
                     <th style="padding: 12px; text-align: center; font-weight: bold; color: #d4af37;">✅ Playing</th>
                     <th style="padding: 12px; text-align: center; font-weight: bold; color: #c41e3a;">❌ Not Playing</th>
-                    <th style="padding: 12px; text-align: center; font-weight: bold; color: #003d7a;">Total Games</th>
+                    <th style="padding: 12px; text-align: center; font-weight: bold; color: #1e1f28;">Total Games</th>
                 </tr>
             </thead>
             <tbody>
                 {% for stat in player_stats %}
-                <tr style="border-bottom: 1px solid #dee2e6;">
-                    <td style="padding: 12px; font-weight: 600; color: #003d7a;">
+                <tr style="border-bottom: 1px solid #d2c5b6;">
+                    <td style="padding: 12px; font-weight: 600; color: #1e1f28;">
                         {{ stat.name }}{% if stat.position == 'GK' %} 🧤{% endif %}
                     </td>
                     <td style="padding: 12px; text-align: center; color: #d4af37; font-weight: bold; font-size: 18px;">
@@ -321,7 +321,7 @@
                     <td style="padding: 12px; text-align: center; color: #c41e3a; font-weight: bold; font-size: 18px;">
                         {{ stat.not_playing }}
                     </td>
-                    <td style="padding: 12px; text-align: center; color: #003d7a; font-weight: bold; font-size: 18px;">
+                    <td style="padding: 12px; text-align: center; color: #1e1f28; font-weight: bold; font-size: 18px;">
                         {{ stat.playing + stat.not_playing }}
                     </td>
                 </tr>
@@ -332,7 +332,7 @@
     {% endif %}
 
     <div style="margin-top: 30px;">
-        <a href="/matches" class="btn back-button" style="background: #95a5a6;">← Back to Matches</a>
+        <a href="/matches" class="btn back-button" style="background: #756d66;">← Back to Matches</a>
     </div>
 </div>
 {% endblock %}

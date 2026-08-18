@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#1b4332">
+    <meta name="theme-color" content="#1e1f28">
     <title>{% block title %}Under-12 Football Manager{% endblock %}</title>
     <link rel="manifest" href="/static/manifest.json">
     <link rel="icon" type="image/svg+xml" href="/static/icon-192.svg">
@@ -14,11 +14,29 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --ink: #1e1f28;
+            --panel: #252731;
+            --panel-2: #2d3443;
+            --paper: #efe5d8;
+            --paper-2: #f7efe5;
+            --line: #d2c5b6;
+            --muted: #756d66;
+            --red: #c41e3a;
+            --red-dark: #8f172b;
+            --gold: #d4af37;
+            --gold-dark: #aa8622;
+            --green: #39583c;
+            --focus: #f1d16a;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #1b4332 0%, #40916c 100%);
+            font-family: "Aptos", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--ink);
+            color: var(--paper);
             min-height: 100vh;
-            padding: 20px;
+            padding: 24px;
+            letter-spacing: -0.01em;
         }
 
         .container {
@@ -27,14 +45,15 @@
         }
 
         .header {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-left: 8px solid var(--red);
+            border-radius: 0;
+            padding: 18px 20px;
+            margin-bottom: 18px;
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 18px;
         }
 
         .header-logo {
@@ -49,83 +68,102 @@
         }
 
         .header h1 {
-            color: #1b4332;
-            margin-bottom: 10px;
-            font-size: 20px;
+            color: var(--ink);
+            margin-bottom: 12px;
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: clamp(22px, 2vw, 30px);
+            line-height: 1;
+            letter-spacing: -0.04em;
         }
 
         .nav {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
         }
 
         .menu-toggle {
             display: none;
-            background: #1b4332;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 8px;
+            background: var(--ink);
+            color: var(--paper);
+            border: 1px solid var(--ink);
+            padding: 10px 14px;
+            border-radius: 0;
             cursor: pointer;
             font-size: 20px;
             font-weight: 600;
-            transition: all 0.3s;
+            transition: background-color 0.15s, color 0.15s, border-color 0.15s;
         }
 
         .menu-toggle:hover {
-            background: #0d2818;
+            background: var(--red);
         }
 
         .btn {
-            background: #1b4332;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
+            background: var(--panel);
+            color: var(--paper);
+            border: 1px solid var(--panel);
+            padding: 10px 16px;
+            border-radius: 0;
             cursor: pointer;
             text-decoration: none;
             display: inline-block;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.3s;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            transition: background-color 0.15s, color 0.15s, border-color 0.15s;
         }
 
         .btn:hover {
-            background: #0d2818;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            background: var(--red);
+            border-color: var(--red);
+        }
+
+        .btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible {
+            outline: 3px solid var(--focus);
+            outline-offset: 2px;
         }
 
         .btn-danger {
-            background: #40916c;
+            background: var(--red);
+            border-color: var(--red);
         }
 
         .btn-danger:hover {
-            background: #a01829;
+            background: var(--red-dark);
+            border-color: var(--red-dark);
         }
 
         .btn-success {
-            background: #d4af37;
-            color: #1b4332;
+            background: var(--gold);
+            border-color: var(--gold);
+            color: var(--ink);
         }
 
         .btn-success:hover {
-            background: #2d6a4f;
-            color: #1b4332;
+            background: var(--gold-dark);
+            border-color: var(--gold-dark);
+            color: var(--ink);
         }
 
         .card {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            background: var(--paper);
+            color: var(--ink);
+            border: 1px solid var(--line);
+            border-radius: 0;
+            padding: clamp(20px, 3vw, 34px);
+            margin-bottom: 18px;
+        }
+
+        .card h2, .card h3 {
+            color: var(--ink);
+            font-family: Georgia, "Times New Roman", serif;
+            letter-spacing: -0.035em;
         }
 
         .card h2 {
-            color: #1b4332;
-            margin-bottom: 20px;
+            margin-bottom: 18px;
+            font-size: clamp(26px, 3vw, 42px);
         }
 
         .form-group {
@@ -135,21 +173,23 @@
         label {
             display: block;
             margin-bottom: 5px;
-            color: #1b4332;
+            color: var(--ink);
             font-weight: 600;
         }
 
-        input, select {
+        input, select, textarea {
             width: 100%;
-            padding: 10px;
-            border: 2px solid #ecf0f1;
-            border-radius: 8px;
+            padding: 11px 12px;
+            border: 1px solid var(--line);
+            border-radius: 0;
             font-size: 14px;
+            background: var(--paper-2);
+            color: var(--ink);
         }
 
-        input:focus, select:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none;
-            border-color: #1b4332;
+            border-color: var(--red);
         }
 
         table {
@@ -160,26 +200,37 @@
         th, td {
             padding: 12px;
             text-align: left;
-            border-bottom: 1px solid #ecf0f1;
+            border-bottom: 1px solid var(--line);
         }
 
         th {
-            background: #f8f9fa;
-            color: #1b4332;
+            background: var(--panel);
+            color: var(--paper);
             font-weight: 600;
+            font-size: 12px;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        tr:nth-child(even) td {
+            background: rgba(45, 52, 67, 0.06);
         }
 
         .offline-indicator {
             position: fixed;
             bottom: 20px;
             right: 20px;
-            background: #40916c;
-            color: white;
+            background: var(--red);
+            color: var(--paper);
             padding: 10px 20px;
-            border-radius: 8px;
+            border-radius: 0;
             display: none;
             font-weight: 600;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            border: 1px solid var(--paper);
+        }
+
+        .muted, .card p, .card li {
+            color: var(--muted);
         }
 
         .offline-indicator.show {
@@ -235,14 +286,14 @@
                 <h1>⚽ {{ team_title }}</h1>
                 <button class="menu-toggle" onclick="toggleMenu()">☰ Menu</button>
                 <nav class="nav" id="mainNav">
-                    <a href="/" class="btn">🏠 Home</a>
-                    <a href="/players" class="btn">👥 Players</a>
-                    <a href="/team-generator" class="btn">🎲 Generator</a>
-                    <a href="/gameday" class="btn" style="background: #d4af37; color: #1b4332;">🏟️ Game Day</a>
-                    <a href="/live" class="btn" style="background: #40916c; color: white;">🔴 Live</a>
-                    <a href="/matches" class="btn">📅 Matches</a>
-                    <a href="/settings" class="btn">⚙️ Settings</a>
-                    <a href="/logout" class="btn btn-danger">🚪 Logout</a>
+                    <a href="/" class="btn">Home</a>
+                    <a href="/players" class="btn">Players</a>
+                    <a href="/team-generator" class="btn">Generator</a>
+                    <a href="/gameday" class="btn btn-success">Game Day</a>
+                    <a href="/live" class="btn btn-danger">Live</a>
+                    <a href="/matches" class="btn">Matches</a>
+                    <a href="/settings" class="btn">Settings</a>
+                    <a href="/logout" class="btn btn-danger">Logout</a>
                 </nav>
             </div>
         </div>
@@ -251,7 +302,7 @@
         {% block content %}{% endblock %}
         
         {% if version %}
-        <div style="text-align: center; padding: 20px; color: #95a5a6; font-size: 12px;">
+        <div style="text-align: center; padding: 20px; color: #756d66; font-size: 12px;">
             v{{ version }}
         </div>
         {% endif %}
@@ -291,5 +342,4 @@
     {% block extra_js %}{% endblock %}
 </body>
 </html>
-
 

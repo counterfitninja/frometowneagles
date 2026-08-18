@@ -5,7 +5,7 @@
 {% block content %}
 <div class="card">
     <h2>📋 Saved Formations</h2>
-    <p style="color: #7f8c8d; margin-bottom: 20px;">Load previously saved team formations</p>
+    <p style="color: #756d66; margin-bottom: 20px;">Load previously saved team formations</p>
     
     {% if formations %}
     <table>
@@ -25,7 +25,7 @@
                     <button onclick="loadFormation({{ formation.id }})" class="btn" style="padding: 6px 12px; font-size: 12px;">
                         📂 Load
                     </button>
-                    <button onclick="viewGameDay({{ formation.id }})" class="btn" style="padding: 6px 12px; font-size: 12px; background: #003d7a;">
+                    <button onclick="viewGameDay({{ formation.id }})" class="btn" style="padding: 6px 12px; font-size: 12px; background: #1e1f28;">
                         🖨️ Game Day View
                     </button>
                     <form method="POST" action="/formations/{{ formation.id }}/delete" style="display: inline;">
@@ -39,7 +39,7 @@
         </tbody>
     </table>
     {% else %}
-    <p style="text-align: center; color: #7f8c8d; padding: 40px;">
+    <p style="text-align: center; color: #756d66; padding: 40px;">
         No formations saved yet. Create one on the <a href="/pitch">pitch page</a>!
     </p>
     {% endif %}

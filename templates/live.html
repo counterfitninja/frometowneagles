@@ -145,7 +145,7 @@
             position: relative;
             width: 100%;
             padding-top: 50%;
-            background: linear-gradient(to right, #3d6e32 0%, #4e8a40 50%, #3d6e32 100%);
+            background: #39583c;
             border: 3px solid rgba(255,255,255,0.6);
             border-radius: 8px;
             overflow: hidden;
@@ -216,7 +216,7 @@
             cursor: default;
             transition: transform 0.15s, background 0.15s;
             z-index: 10;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            border: 1px solid #efe5d8;
         }
 
         .live-player.tappable {
@@ -241,14 +241,14 @@
         .live-player.subbed-in {
             background: #d4af37;
             border-color: #e8c547;
-            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.5);
+            outline: 3px solid #d4af37;
             animation: pulse-new 1.8s ease-in-out infinite;
         }
 
         @keyframes pulse-new {
-            0%   { box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.5); }
-            50%  { box-shadow: 0 0 0 8px rgba(46, 204, 113, 0); }
-            100% { box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.5); }
+            0%   { outline: 3px solid #d4af37; }
+            50%  { outline: 6px solid transparent; }
+            100% { outline: 3px solid #d4af37; }
         }
 
         /* BOTTOM SECTION */

@@ -6,15 +6,15 @@
 <style>
     .generator-section {
         background: white;
-        border-radius: 12px;
+        border-radius: 0;
         padding: 20px;
         margin-bottom: 20px;
     }
 
     .team-card {
-        background: #f8f9fa;
-        border: 2px solid #dee2e6;
-        border-radius: 12px;
+        background: #f7efe5;
+        border: 2px solid #d2c5b6;
+        border-radius: 0;
         padding: 20px;
         margin-bottom: 15px;
     }
@@ -25,13 +25,13 @@
         align-items: center;
         margin-bottom: 15px;
         padding-bottom: 10px;
-        border-bottom: 2px solid #003d7a;
+        border-bottom: 2px solid #1e1f28;
     }
 
     .team-title {
         font-size: 20px;
         font-weight: bold;
-        color: #003d7a;
+        color: #1e1f28;
     }
 
     .player-grid {
@@ -42,10 +42,10 @@
     }
 
     .player-badge {
-        background: #003d7a;
+        background: #1e1f28;
         color: white;
         padding: 8px 12px;
-        border-radius: 8px;
+        border-radius: 0;
         font-size: 13px;
         font-weight: 500;
         text-align: center;
@@ -53,16 +53,16 @@
 
     .player-badge.goalkeeper {
         background: #d4af37;
-        color: #003d7a;
+        color: #1e1f28;
     }
 
     .player-badge.sub {
-        background: #95a5a6;
+        background: #756d66;
     }
 
     .stats-box {
-        background: #e3f2fd;
-        border-radius: 8px;
+        background: #f7efe5;
+        border-radius: 0;
         padding: 15px;
         margin-top: 20px;
     }
@@ -77,20 +77,20 @@
     .stat-item {
         background: white;
         padding: 12px;
-        border-radius: 8px;
-        border-left: 4px solid #003d7a;
+        border-radius: 0;
+        border-left: 4px solid #1e1f28;
     }
 
     .stat-label {
         font-size: 12px;
-        color: #7f8c8d;
+        color: #756d66;
         margin-bottom: 5px;
     }
 
     .stat-value {
         font-size: 18px;
         font-weight: bold;
-        color: #003d7a;
+        color: #1e1f28;
     }
 
     .generate-form {
@@ -124,16 +124,16 @@
 {% block content %}
 <div class="card">
     <h2>🎲 Team Generator</h2>
-    <p style="color: #7f8c8d; margin-bottom: 20px;">Automatically generate balanced teams for multiple games</p>
+    <p style="color: #756d66; margin-bottom: 20px;">Automatically generate balanced teams for multiple games</p>
 
     {% if error %}
-    <div style="background: #fee; border: 2px solid #c33; color: #c33; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+    <div style="background: #fee; border: 2px solid #c33; color: #c33; padding: 15px; border-radius: 0; margin-bottom: 20px;">
         <strong>⚠️ Error:</strong> {{ error }}
     </div>
     {% endif %}
 
     <div class="generator-section">
-        <h3 style="color: #003d7a; margin-bottom: 15px;">Generate Teams</h3>
+        <h3 style="color: #1e1f28; margin-bottom: 15px;">Generate Teams</h3>
         <form method="POST" action="/team-generator/generate" class="generate-form">
             <div class="form-group">
                 <label for="num_games">Number of Games</label>
@@ -148,14 +148,14 @@
             </div>
             <button type="submit" class="btn btn-success" style="flex: 0;">🎲 Generate Teams</button>
         </form>
-        <p style="font-size: 12px; color: #7f8c8d; margin-top: 10px;">
+        <p style="font-size: 12px; color: #756d66; margin-top: 10px;">
             ℹ️ Teams will include at least 1 goalkeeper. Algorithm ensures fair distribution of players across all games.
         </p>
     </div>
 
     {% if teams %}
     <div class="stats-box">
-        <h3 style="color: #003d7a; margin-bottom: 10px;">📊 Generation Summary</h3>
+        <h3 style="color: #1e1f28; margin-bottom: 10px;">📊 Generation Summary</h3>
         <div class="stats-grid">
             <div class="stat-item">
                 <div class="stat-label">Total Players</div>
@@ -181,17 +181,17 @@
         <div class="team-header">
             <div class="team-title">⚽ Game {{ loop.index }} Team</div>
             <div style="display: flex; gap: 10px; align-items: center;">
-                <div style="font-size: 14px; color: #7f8c8d;">
+                <div style="font-size: 14px; color: #756d66;">
                     {{ team.starters|length }} starters + {{ team.subs|length }} subs
                 </div>
-                <button onclick="saveTeamAsMatch({{ loop.index0 }})" class="btn" style="background: #d4af37; color: #003d7a; padding: 8px 16px; font-size: 13px;">
+                <button onclick="saveTeamAsMatch({{ loop.index0 }})" class="btn" style="background: #d4af37; color: #1e1f28; padding: 8px 16px; font-size: 13px;">
                     💾 Save as Match
                 </button>
             </div>
         </div>
 
         <div>
-            <h4 style="color: #003d7a; margin-bottom: 10px; font-size: 16px;">Starting XI (9 players)</h4>
+            <h4 style="color: #1e1f28; margin-bottom: 10px; font-size: 16px;">Starting XI (9 players)</h4>
             <div class="player-grid">
                 {% for player in team.starters %}
                 <div class="player-badge {% if player.position == 'GK' %}goalkeeper{% endif %}">
@@ -203,7 +203,7 @@
         </div>
 
         <div style="margin-top: 15px;">
-            <h4 style="color: #003d7a; margin-bottom: 10px; font-size: 16px;">Substitutes</h4>
+            <h4 style="color: #1e1f28; margin-bottom: 10px; font-size: 16px;">Substitutes</h4>
             <div class="player-grid">
                 {% for player in team.subs %}
                 <div class="player-badge sub">
@@ -215,11 +215,11 @@
         </div>
 
         {% if team.not_playing %}
-        <div style="margin-top: 15px; background: #fff3cd; padding: 12px; border-radius: 8px; border-left: 4px solid #ffc107;">
-            <h4 style="color: #856404; margin-bottom: 10px; font-size: 16px;">⏸️ Not Playing This Game</h4>
+        <div style="margin-top: 15px; background: #efe5d8; padding: 12px; border-radius: 0; border-left: 4px solid #d4af37;">
+            <h4 style="color: #1e1f28; margin-bottom: 10px; font-size: 16px;">⏸️ Not Playing This Game</h4>
             <div class="player-grid">
                 {% for player in team.not_playing %}
-                <div style="background: #fff; color: #856404; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1px solid #ffc107;">
+                <div style="background: #fff; color: #1e1f28; padding: 8px 12px; border-radius: 0; font-size: 13px; font-weight: 500; border: 1px solid #d4af37;">
                     {{ player.name }}
                     {% if player.position == 'GK' %}🧤{% endif %}
                 </div>
@@ -231,13 +231,13 @@
     {% endfor %}
 
     <div style="margin-top: 20px;">
-        <button onclick="window.print()" class="btn" style="background: #3498db;">🖨️ Print Teams</button>
-        <button onclick="copyTeamsToClipboard()" class="btn" style="background: #003d7a;">📋 Copy to Clipboard</button>
+        <button onclick="window.print()" class="btn" style="background: #2d3443;">🖨️ Print Teams</button>
+        <button onclick="copyTeamsToClipboard()" class="btn" style="background: #1e1f28;">📋 Copy to Clipboard</button>
     </div>
     {% endif %}
 
     {% if not teams %}
-    <div style="text-align: center; padding: 40px; color: #95a5a6;">
+    <div style="text-align: center; padding: 40px; color: #756d66;">
         <p style="font-size: 16px;">No teams generated yet. Fill in the form above and click "Generate Teams".</p>
         <p style="font-size: 14px; margin-top: 10px;">Make sure you have added players first in the <a href="/players">Players</a> section.</p>
     </div>
@@ -285,16 +285,16 @@ function showMatchSelectionModal(teamIndex, team) {
     modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
     
     let modalContent = `
-        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
-            <h3 style="margin-bottom: 20px; color: #003d7a;">Save Team as Match Formation</h3>
+        <div style="background: white; padding: 30px; border-radius: 0; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+            <h3 style="margin-bottom: 20px; color: #1e1f28;">Save Team as Match Formation</h3>
     `;
     
     if (availableMatches && availableMatches.length > 0) {
         modalContent += `
-            <p style="color: #7f8c8d; margin-bottom: 15px;">Select a match from your schedule or enter a custom name:</p>
+            <p style="color: #756d66; margin-bottom: 15px;">Select a match from your schedule or enter a custom name:</p>
             <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #003d7a;">Choose Match:</label>
-                <select id="matchSelect" style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px;" onchange="updateMatchName()">
+                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #1e1f28;">Choose Match:</label>
+                <select id="matchSelect" style="width: 100%; padding: 10px; border: 2px solid #d2c5b6; border-radius: 0; font-size: 14px;" onchange="updateMatchName()">
                     <option value="">-- Custom Name --</option>
         `;
         
@@ -309,16 +309,16 @@ function showMatchSelectionModal(teamIndex, team) {
         `;
     } else {
         modalContent += `
-            <p style="color: #7f8c8d; margin-bottom: 15px;">No upcoming matches found. Enter a custom name or <a href="/matches">add matches</a> first.</p>
+            <p style="color: #756d66; margin-bottom: 15px;">No upcoming matches found. Enter a custom name or <a href="/matches">add matches</a> first.</p>
         `;
     }
     
     modalContent += `
             <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #003d7a;">Match Name:</label>
+                <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #1e1f28;">Match Name:</label>
                 <input type="text" id="matchNameInput" placeholder="e.g., vs Eagles - Jan 20" 
                        value="Game ${teamIndex + 1} - ${new Date().toLocaleDateString()}"
-                       style="width: 100%; padding: 10px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px;">
+                       style="width: 100%; padding: 10px; border: 2px solid #d2c5b6; border-radius: 0; font-size: 14px;">
             </div>
             <div style="display: flex; gap: 10px;">
                 <button onclick="confirmSaveTeam(${teamIndex}, this)" class="btn btn-success" style="flex: 1;">💾 Save</button>
@@ -436,7 +436,7 @@ async function confirmSaveTeam(teamIndex, buttonElement) {
                     saveButton.style.display = 'none';
                     const savedBadge = document.createElement('span');
                     savedBadge.className = 'status-badge';
-                    savedBadge.style.cssText = 'background: #d4af37; color: #003d7a; padding: 8px 16px; font-size: 13px;';
+                    savedBadge.style.cssText = 'background: #d4af37; color: #1e1f28; padding: 8px 16px; font-size: 13px;';
                     savedBadge.textContent = '✅ Saved';
                     saveButton.parentNode.appendChild(savedBadge);
                 }
