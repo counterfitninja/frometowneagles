@@ -16,7 +16,15 @@
     --fte-gold: #d4af37;
     --fte-gold-deep: #aa8622;
     --fte-pitch: #39583c;
+    --fte-whatsapp: #25d366;
     --fte-focus: #f1d16a;
+
+    --fte-radius-card: 22px;
+    --fte-radius-panel: 16px;
+    --fte-radius-control: 12px;
+    --fte-radius-pill: 999px;
+    --fte-shadow-card: 0 18px 45px rgba(17, 18, 23, 0.24);
+    --fte-shadow-soft: 0 8px 22px rgba(17, 18, 23, 0.16);
 
     --ink: var(--fte-dugout);
     --panel: var(--fte-panel);
@@ -43,6 +51,9 @@ body {
     font-family: "Aptos", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif !important;
 }
 
+.container {
+    width: min(1200px, calc(100vw - 32px));
+}
 
 .header,
 .card,
@@ -59,8 +70,9 @@ body {
 .formations-overview,
 .players-sidebar,
 .subs-bench {
-    border-radius: 0 !important;
-    box-shadow: none !important;
+    border-radius: var(--fte-radius-card) !important;
+    box-shadow: var(--fte-shadow-card) !important;
+    border: 1px solid rgba(210, 197, 182, 0.62) !important;
 }
 
 .header,
@@ -71,11 +83,15 @@ body {
 .no-matches {
     background: var(--fte-paper) !important;
     color: var(--fte-dugout) !important;
-    border: 1px solid var(--fte-paper-line) !important;
 }
 
 .header {
-    border-left: 8px solid var(--fte-red) !important;
+    border-left: 0 !important;
+    padding: 18px 20px !important;
+}
+
+.header-logo {
+    border-radius: 16px;
 }
 
 .card h1,
@@ -85,8 +101,20 @@ body {
 .match-title,
 .team-title,
 .formation-title {
+    color: var(--fte-dugout) !important;
     font-family: Georgia, "Times New Roman", serif !important;
     letter-spacing: -0.045em;
+}
+
+.card p,
+.card li,
+.match-info,
+.match-date,
+.match-location,
+.stat-label,
+.upcoming-meta,
+.formation-mini-card .mini-players {
+    color: var(--fte-muted) !important;
 }
 
 .btn,
@@ -97,10 +125,11 @@ button,
 .player-chip,
 .player-badge,
 .upcoming-badge,
+.upcoming-not-playing-chip,
 .sub-player,
 .player-item,
 .formation-mini-card {
-    border-radius: 0 !important;
+    border-radius: var(--fte-radius-control) !important;
     box-shadow: none !important;
 }
 
@@ -114,8 +143,9 @@ button,
 
 .btn:hover,
 .nav-btn:hover {
-    background: var(--fte-red) !important;
-    border-color: var(--fte-red) !important;
+    background: var(--fte-slate) !important;
+    border-color: var(--fte-slate) !important;
+    color: var(--fte-paper) !important;
 }
 
 .btn-success,
@@ -140,6 +170,26 @@ button,
     color: var(--fte-paper) !important;
 }
 
+.nav-btn.whatsapp,
+.btn-whatsapp,
+button[title*="WhatsApp"] {
+    background: var(--fte-whatsapp) !important;
+    border-color: var(--fte-whatsapp) !important;
+    color: var(--fte-dugout) !important;
+}
+
+.team-section,
+.summary-box,
+.stats-box,
+.generator-section,
+.bulk-upload-section,
+.format-example,
+#addMatchForm,
+#editMatchForm {
+    border-radius: var(--fte-radius-panel) !important;
+    box-shadow: none !important;
+}
+
 .team-section.playing,
 .match-card.has-formation,
 .summary-box,
@@ -156,11 +206,44 @@ button,
     border-color: var(--fte-red) !important;
 }
 
+.home-actions {
+    gap: 16px !important;
+}
+
+.home-tile {
+    border-radius: var(--fte-radius-card) !important;
+    box-shadow: var(--fte-shadow-soft) !important;
+    border: 1px solid rgba(210, 197, 182, 0.58) !important;
+}
+
+.home-tile.is-dark {
+    background: var(--fte-slate) !important;
+    color: var(--fte-paper) !important;
+}
+
+.tile-kicker,
+.count-badge,
+.status-badge,
+.upcoming-badge,
+.player-chip,
+.player-badge,
+.upcoming-not-playing-chip {
+    border-radius: var(--fte-radius-pill) !important;
+}
+
 .pitch,
 .pitch-container,
 .mini-pitch {
     background: var(--fte-pitch) !important;
     border-color: var(--fte-paper) !important;
+    border-radius: var(--fte-radius-panel) !important;
+}
+
+.center-circle,
+.mini-player,
+.player-marker,
+.player-dot {
+    border-radius: 50% !important;
 }
 
 input,
@@ -168,7 +251,7 @@ select,
 textarea {
     background: var(--fte-paper-fresh) !important;
     border: 1px solid var(--fte-paper-line) !important;
-    border-radius: 0 !important;
+    border-radius: var(--fte-radius-control) !important;
     color: var(--fte-dugout) !important;
 }
 
@@ -178,9 +261,38 @@ textarea:focus {
     border-color: var(--fte-red) !important;
 }
 
+table {
+    overflow: hidden;
+    border-radius: var(--fte-radius-panel);
+}
+
+th {
+    background: var(--fte-panel) !important;
+    color: var(--fte-paper) !important;
+}
+
 :focus-visible {
     outline: 3px solid var(--fte-focus) !important;
     outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+    body {
+        padding: 16px !important;
+    }
+
+    .container {
+        width: 100%;
+    }
+
+    .header,
+    .card,
+    .match-card,
+    .match-overview-card,
+    .upcoming-card,
+    .no-matches {
+        border-radius: 18px !important;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

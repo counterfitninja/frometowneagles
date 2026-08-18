@@ -3,7 +3,7 @@
 Source references: `screenshots/sample-03-parent-share-card.png`, `screenshots/sample-04-fixtures-dark-standard.png`, and `screenshots/sample-05-team-generator-dark-standard.png`.
 
 ## Design idea
-The app should feel like a junior football match board: dark dugout UI around practical paper team sheets. Keep it direct, low-gloss, square, and useful. Avoid the generic SaaS look: no gradients, no floating glass panels, no decorative shadows, no emoji-led hierarchy.
+The app should feel like a junior football match board: dark dugout UI around practical paper team sheets. Keep it direct, rounded, tactile, and useful. Avoid the generic SaaS look: no gradients, no glass panels, no emoji-led hierarchy. Use soft card shadows sparingly so the paper sheets feel lifted from the dark dugout background.
 
 ## Core tokens
 | Role | Token | Hex | Use |
@@ -20,6 +20,9 @@ The app should feel like a junior football match board: dark dugout UI around pr
 | Match red | `--fte-red` | `#c41e3a` | Warnings, live state, unavailable players |
 | Gold selection | `--fte-gold` | `#d4af37` | Selected/ready/primary positive actions |
 | Pitch green | `--fte-pitch` | `#39583c` | Pitch surfaces only |
+| Control radius | `--fte-radius-control` | `12px` | Buttons, fields, compact controls |
+| Panel radius | `--fte-radius-panel` | `16px` | Team sections and form panels |
+| Card radius | `--fte-radius-card` | `22px` | Major cards and page panels |
 
 ## Typography
 - Display: Georgia, tight tracking, used for page titles and match/team headings.
@@ -27,9 +30,10 @@ The app should feel like a junior football match board: dark dugout UI around pr
 - Avoid all-caps except small utility labels and table headings.
 
 ## Layout rules
-- Square geometry. Border radius should be `0` unless a real pitch marking needs a circle.
-- Cards are paper sheets on a dark dugout, not floating glass. Use borders, not shadows.
-- Red left rule means fixture/match context. Gold means selected/ready/playing.
+- Rounded geometry is part of the samples: major cards use `22px`, panels use `16px`, controls use `12px`, and chips/badges use pill corners.
+- Cards are paper sheets on a dark dugout, not floating glass. Use a modest shadow plus a paper border; avoid heavy glow effects.
+- Standard button colours: dark slate for default, gold for primary/ready/playing, red for destructive/live/not-playing, green only for WhatsApp/share.
+- Gold means selected/ready/playing. Red means destructive, live, warning, or not available.
 - Keep content dense enough for a coach on a phone before kick-off; do not add decorative empty space.
 
 ## Updating later

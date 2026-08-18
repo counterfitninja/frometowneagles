@@ -1,9 +1,9 @@
 // Service Worker for offline functionality
-const CACHE_NAME = 'football-manager-v' + new Date().toISOString().slice(0,13).replace(/[-:T]/g, '');
+const CACHE_NAME = 'football-manager-design-20260818-rounded';
 const urlsToCache = [
     '/',
     '/static/manifest.json',
-    '/static/design-language.css',
+    '/static/design-language.css?v=20260818-rounded',
     '/static/icon-192.png',
     '/static/icon-512.png',
     '/players',
