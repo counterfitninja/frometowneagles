@@ -3,7 +3,7 @@
 This is a Flask-based football team management application designed to run on Pterodactyl/Pelican game servers.
 
 ## Features
-- Player management with ratings
+- Player management with ratings and retirement status (historic stats preserved)
 - Match scheduling and team formations
 - Drag-and-drop pitch interface
 - Public pages for parents/players

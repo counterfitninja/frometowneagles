@@ -62,12 +62,12 @@
         <div class="leaderboard-list" id="{{ list_id }}" role="tabpanel" aria-labelledby="{{ tab_id }}" {% if not loop.first %}hidden{% endif %}>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Player</th><th>Position</th><th>{{ label }}</th></tr></thead>
+                    <thead><tr><th>Player</th><th>Position</th><th>Status</th><th>{{ label }}</th></tr></thead>
                     <tbody>
                     {% for player in leaderboard|sort(attribute=stat, reverse=true) %}
-                        <tr><td>{{ player.name }}</td><td>{{ player.position or '-' }}</td><td>{{ player[stat] }}</td></tr>
+                        <tr><td>{{ player.name }}</td><td>{{ player.position or '-' }}</td><td>{{ 'Retired' if player.status == 'retired' else 'Active' }}</td><td>{{ player[stat] }}</td></tr>
                     {% else %}
-                        <tr><td colspan="3">No player statistics recorded yet.</td></tr>
+                        <tr><td colspan="4">No player statistics recorded yet.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
