@@ -1285,7 +1285,16 @@ def team_generator():
     
     players = [dict(p) for p in players_list]
     matches = [dict(m) for m in matches_list]
-    return render_template('team_generator.html', players=players, matches=matches, version=VERSION)
+    return render_template(
+        'team_generator.html',
+        players=players,
+        matches=matches,
+        selected_match_ids=[match['id'] for match in matches[:20]],
+        invite_all_match_ids=[],
+        team_size=12,
+        num_games=len(matches) if matches else 4,
+        version=VERSION
+    )
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
@@ -1345,8 +1354,14 @@ def generate_teams():
     import random
     from collections import defaultdict
     
-    num_games = int(request.form.get('num_games', 4))
-    team_size = int(request.form.get('team_size', 11))
+    try:
+        requested_num_games = int(request.form.get('num_games', 4))
+        team_size = int(request.form.get('team_size', 12))
+    except (TypeError, ValueError):
+        return render_template('team_generator.html', error='Enter a valid number of games and team size.', version=VERSION)
+
+    submitted_match_ids = request.form.getlist('match_ids')
+    requested_invite_all_ids = {str(match_id) for match_id in request.form.getlist('invite_all_for')}
     
     # Retired players are intentionally excluded from newly generated teams.
     with get_db() as conn:
@@ -1355,14 +1370,55 @@ def generate_teams():
             WHERE status = 'active'
             ORDER BY name
         ''').fetchall()
-    
-    if len(players_list) < team_size:
-        return render_template('team_generator.html', 
-                             error=f'Not enough players! You have {len(players_list)} players but need at least {team_size}.',
-                             version=VERSION)
-    
-    # Convert to list of dicts
+        matches_list = conn.execute('''
+            SELECT id, match_date, opponent, location
+            FROM matches
+            WHERE formation_id IS NULL
+            ORDER BY match_date
+        ''').fetchall()
+
     players = [dict(p) for p in players_list]
+    matches = [dict(m) for m in matches_list]
+    available_match_ids = {str(match['id']) for match in matches}
+    selected_matches = [match for match in matches if str(match['id']) in submitted_match_ids]
+    selected_match_ids = [match['id'] for match in selected_matches]
+    invite_all_match_ids = requested_invite_all_ids.intersection({str(match_id) for match_id in selected_match_ids})
+
+    def render_generator_error(message):
+        return render_template(
+            'team_generator.html',
+            error=message,
+            players=players,
+            matches=matches,
+            selected_match_ids=selected_match_ids,
+            invite_all_match_ids=list(invite_all_match_ids),
+            team_size=team_size,
+            num_games=requested_num_games,
+            version=VERSION
+        )
+
+    if submitted_match_ids:
+        invalid_match_ids = set(submitted_match_ids) - available_match_ids
+        if invalid_match_ids:
+            return render_generator_error('One or more selected games are no longer available. Refresh the page and try again.')
+        if not selected_matches:
+            return render_generator_error('Select at least one game to generate teams for.')
+        if len(selected_matches) > 20:
+            return render_generator_error('Select 20 games or fewer at a time.')
+        num_games = len(selected_matches)
+    else:
+        num_games = requested_num_games
+
+    if num_games < 1 or num_games > 20:
+        return render_generator_error('Choose between 1 and 20 games.')
+    if team_size < 9 or team_size > 15:
+        return render_generator_error('Team size must be between 9 and 15 players.')
+
+    standard_size_required = not selected_matches or any(
+        str(match['id']) not in invite_all_match_ids for match in selected_matches
+    )
+    if standard_size_required and len(players_list) < team_size:
+        return render_generator_error(f'Not enough players! You have {len(players_list)} players but need at least {team_size}.')
     
     # Randomize player order at start to ensure different results each time
     random.shuffle(players)
@@ -1372,19 +1428,17 @@ def generate_teams():
     outfield = [p for p in players if p['position'] != 'GK']
     
     if len(goalkeepers) == 0:
-        return render_template('team_generator.html', 
-                             error='No goalkeepers found! Please add at least one player with position "GK".',
-                             version=VERSION)
+        return render_generator_error('No goalkeepers found! Please add at least one player with position "GK".')
     
     # Generate teams
     teams = []
     player_game_count = defaultdict(int)  # Track how many games each player plays
     
     for game in range(num_games):
-        # Calculate how many players we need
-        starters_needed = 9
-        subs_needed = team_size - 9
-        
+        game_match = selected_matches[game] if selected_matches else None
+        invite_all_players = bool(game_match and str(game_match['id']) in invite_all_match_ids)
+        game_team_size = len(players) if invite_all_players else team_size
+
         # Sort players by games played (least to most), with random tiebreaker
         sorted_players = sorted(players, key=lambda p: (player_game_count[p['id']], random.random()))
         
@@ -1405,7 +1459,7 @@ def generate_teams():
         available_outfield = [p for p in outfield]
         
         # Calculate remaining spots
-        remaining_spots = team_size - len(team_gks)
+        remaining_spots = game_team_size - len(team_gks)
         
         # Pick players with least games first, randomize within same game count
         team_outfield = sorted(available_outfield, key=lambda p: (player_game_count[p['id']], random.random()))[:remaining_spots]
@@ -1440,7 +1494,13 @@ def generate_teams():
         teams.append({
             'starters': starters,
             'subs': subs,
-            'not_playing': not_playing
+            'not_playing': not_playing,
+            'match_id': game_match['id'] if game_match else None,
+            'match_label': (
+                f"{game_match['match_date']} - vs {game_match['opponent']}"
+                if game_match else None
+            ),
+            'invite_all_players': invite_all_players
         })
     
     # Calculate stats
@@ -1450,24 +1510,19 @@ def generate_teams():
         'total_players': len(players),
         'num_games': num_games,
         'team_size': team_size,
-        'max_games_missed': max_games_missed
+        'max_games_missed': max_games_missed,
+        'invite_all_count': len(invite_all_match_ids)
     }
-    
-    # Get available matches for linking
-    with get_db() as conn:
-        matches_list = conn.execute('''
-            SELECT id, match_date, opponent, location 
-            FROM matches 
-            WHERE formation_id IS NULL 
-            ORDER BY match_date
-        ''').fetchall()
-    matches = [dict(m) for m in matches_list]
     
     return render_template('team_generator.html', 
                          teams=teams, 
                          stats=stats,
                          players=players,
                          matches=matches,
+                         selected_match_ids=selected_match_ids,
+                         invite_all_match_ids=list(invite_all_match_ids),
+                         team_size=team_size,
+                         num_games=num_games,
                          version=VERSION)
 
 if __name__ == '__main__':
