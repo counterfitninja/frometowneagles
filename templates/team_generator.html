@@ -78,7 +78,7 @@
         background: white;
         padding: 12px;
         border-radius: 0;
-        border-left: 4px solid #1e1f28;
+        border: 1px solid #d2c5b6;
     }
 
     .stat-label {
@@ -95,7 +95,7 @@
 
     .generate-form {
         display: flex;
-        gap: 15px;
+        gap: 18px;
         align-items: flex-end;
         flex-wrap: wrap;
     }
@@ -103,6 +103,141 @@
     .generate-form .form-group {
         flex: 1;
         min-width: 200px;
+    }
+
+    .game-selection-group {
+        flex-basis: 100%;
+        min-width: 100%;
+    }
+
+    .section-heading-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+
+    .selection-count {
+        color: #756d66;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .game-picker {
+        display: grid;
+        gap: 10px;
+        max-height: 360px;
+        overflow-y: auto;
+        padding: 2px;
+    }
+
+    .game-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 13px 14px;
+        background: white;
+        border: 1px solid #d2c5b6;
+        border-radius: 12px;
+        transition: background-color 0.15s, border-color 0.15s;
+    }
+
+    .game-option.is-selected {
+        background: #fff9e8;
+        border-color: #d4af37;
+    }
+
+    .game-main {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .game-checkbox,
+    .invite-checkbox {
+        width: auto;
+        flex: 0 0 auto;
+        accent-color: #d4af37;
+        margin-top: 3px;
+    }
+
+    .game-label {
+        display: grid;
+        gap: 3px;
+        cursor: pointer;
+        min-width: 0;
+    }
+
+    .game-label strong {
+        color: #1e1f28;
+        font-size: 14px;
+    }
+
+    .game-label span {
+        color: #756d66;
+        font-size: 12px;
+    }
+
+    .invite-toggle {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: #756d66;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+
+    .invite-toggle.is-disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .empty-game-picker {
+        background: white;
+        border: 1px dashed #d2c5b6;
+        border-radius: 12px;
+        padding: 18px;
+        color: #756d66;
+        font-size: 13px;
+    }
+
+    .selection-help {
+        margin-top: 10px;
+        color: #756d66;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    .invite-notice {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 15px;
+        padding: 10px 12px;
+        background: #fff9e8;
+        border: 1px solid #d4af37;
+        border-radius: 10px;
+        color: #1e1f28;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    @media (max-width: 600px) {
+        .game-option {
+            align-items: flex-start;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .invite-toggle {
+            padding-left: 30px;
+        }
     }
 
     @media (max-width: 768px) {
@@ -133,23 +268,69 @@
     {% endif %}
 
     <div class="generator-section">
-        <h3 style="color: #1e1f28; margin-bottom: 15px;">Generate Teams</h3>
+        <h3 style="color: #1e1f28; margin-bottom: 8px;">Generate Teams</h3>
+        <p style="color: #756d66; margin-bottom: 18px;">Choose the fixtures you want to plan. Each selected game gets its own balanced team.</p>
         <form method="POST" action="/team-generator/generate" class="generate-form">
-            <div class="form-group">
-                <label for="num_games">Number of Games</label>
-                <input type="number" id="num_games" name="num_games" min="1" max="20" value="{{ matches|length if matches else 4 }}" required>
-                {% if matches and matches|length > 0 %}
-                <small style="color: #d4af37; display: block; margin-top: 5px;">✓ {{ matches|length }} upcoming match(es) found</small>
+            <div class="form-group game-selection-group">
+                <div class="section-heading-row">
+                    <label for="gamePicker">Games to include</label>
+                    <span class="selection-count" id="selectionCount" aria-live="polite"></span>
+                </div>
+                {% if matches %}
+                <div class="game-picker" id="gamePicker">
+                    {% for match in matches %}
+                    <div class="game-option" data-game-option>
+                        <div class="game-main">
+                            <input
+                                type="checkbox"
+                                class="game-checkbox"
+                                id="game-{{ match.id }}"
+                                name="match_ids"
+                                value="{{ match.id }}"
+                                {% if match.id in selected_match_ids|default([]) %}checked{% endif %}
+                            >
+                            <label class="game-label" for="game-{{ match.id }}">
+                                <strong>{{ match.match_date | ukdate }} · vs {{ match.opponent }}</strong>
+                                <span>📍 {{ match.location or 'Location TBD' }}</span>
+                            </label>
+                        </div>
+                        <label class="invite-toggle" for="invite-{{ match.id }}">
+                            <input
+                                type="checkbox"
+                                class="invite-checkbox"
+                                id="invite-{{ match.id }}"
+                                name="invite_all_for"
+                                value="{{ match.id }}"
+                                {% if match.id|string in invite_all_match_ids|default([]) %}checked{% endif %}
+                            >
+                            <span>Invite all players</span>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <p class="selection-help">Select only the games you want to generate. “Invite all players” includes every active player for that fixture instead of limiting it to the team size.</p>
+                {% else %}
+                <div class="empty-game-picker">
+                    No upcoming games without formations. <a href="/matches">Add or review games in Match Schedule</a>, or use a manual game count below.
+                </div>
                 {% endif %}
             </div>
+
+            <input type="hidden" id="num_games" name="num_games" value="{{ num_games|default(4) }}">
+            {% if not matches %}
             <div class="form-group">
-                <label for="team_size">Team Size (includes subs)</label>
-                <input type="number" id="team_size" name="team_size" min="9" max="15" value="12" required>
+                <label for="manual_num_games">Number of Games</label>
+                <input type="number" id="manual_num_games" min="1" max="20" value="{{ num_games|default(4) }}" required>
             </div>
-            <button type="submit" class="btn btn-success" style="flex: 0;">🎲 Generate Teams</button>
+            {% endif %}
+            <div class="form-group">
+                <label for="team_size">Players per game (includes subs)</label>
+                <input type="number" id="team_size" name="team_size" min="9" max="15" value="{{ team_size|default(12) }}" required>
+            </div>
+            <button type="submit" id="generateButton" class="btn btn-success" style="flex: 0;">🎲 Generate Teams</button>
         </form>
         <p style="font-size: 12px; color: #756d66; margin-top: 10px;">
-            ℹ️ Teams will include at least 1 goalkeeper. Algorithm ensures fair distribution of players across all games.
+            ℹ️ Teams include at least 1 goalkeeper and distribute playing time across the selected games.
         </p>
     </div>
 
@@ -173,14 +354,20 @@
                 <div class="stat-label">Max Games Missed</div>
                 <div class="stat-value">{{ stats.max_games_missed }}</div>
             </div>
+            {% if stats.invite_all_count %}
+            <div class="stat-item">
+                <div class="stat-label">Games With Everyone Invited</div>
+                <div class="stat-value">{{ stats.invite_all_count }}</div>
+            </div>
+            {% endif %}
         </div>
     </div>
 
     {% for team in teams %}
     <div class="team-card">
         <div class="team-header">
-            <div class="team-title">⚽ Game {{ loop.index }} Team</div>
-            <div style="display: flex; gap: 10px; align-items: center;">
+            <div class="team-title">⚽ {{ team.match_label or ('Game ' ~ loop.index) }} Team</div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
                 <div style="font-size: 14px; color: #756d66;">
                     {{ team.starters|length }} starters + {{ team.subs|length }} subs
                 </div>
@@ -189,6 +376,10 @@
                 </button>
             </div>
         </div>
+
+        {% if team.invite_all_players %}
+        <div class="invite-notice">👥 All {{ stats.total_players }} active players are invited to this game.</div>
+        {% endif %}
 
         <div>
             <h4 style="color: #1e1f28; margin-bottom: 10px; font-size: 16px;">Starting XI (9 players)</h4>
@@ -215,7 +406,7 @@
         </div>
 
         {% if team.not_playing %}
-        <div style="margin-top: 15px; background: #efe5d8; padding: 12px; border-radius: 0; border-left: 4px solid #d4af37;">
+        <div style="margin-top: 15px; background: #efe5d8; padding: 12px; border-radius: 12px; border: 1px solid #d4af37;">
             <h4 style="color: #1e1f28; margin-bottom: 10px; font-size: 16px;">⏸️ Not Playing This Game</h4>
             <div class="player-grid">
                 {% for player in team.not_playing %}
@@ -268,6 +459,43 @@ try {
 }
 {% endif %}
 
+function syncGameSelection() {
+    const gameCheckboxes = Array.from(document.querySelectorAll('.game-checkbox'));
+    const selectedCount = gameCheckboxes.filter(checkbox => checkbox.checked).length;
+    const selectionCount = document.getElementById('selectionCount');
+    const generateButton = document.getElementById('generateButton');
+    const gamesInput = document.getElementById('num_games');
+
+    if (gameCheckboxes.length > 0) {
+        selectionCount.textContent = `${selectedCount} game${selectedCount === 1 ? '' : 's'} selected`;
+        gamesInput.value = selectedCount;
+        generateButton.disabled = selectedCount === 0;
+    } else {
+        const manualGamesInput = document.getElementById('manual_num_games');
+        if (manualGamesInput) {
+            gamesInput.value = manualGamesInput.value;
+            manualGamesInput.addEventListener('input', () => {
+                gamesInput.value = manualGamesInput.value;
+            });
+        }
+    }
+
+    document.querySelectorAll('[data-game-option]').forEach(option => {
+        const gameCheckbox = option.querySelector('.game-checkbox');
+        const inviteCheckbox = option.querySelector('.invite-checkbox');
+        const inviteLabel = option.querySelector('.invite-toggle');
+        option.classList.toggle('is-selected', gameCheckbox.checked);
+        inviteCheckbox.disabled = !gameCheckbox.checked;
+        inviteLabel.classList.toggle('is-disabled', !gameCheckbox.checked);
+        if (!gameCheckbox.checked) inviteCheckbox.checked = false;
+    });
+}
+
+document.querySelectorAll('.game-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', syncGameSelection);
+});
+syncGameSelection();
+
 async function saveTeamAsMatch(teamIndex) {
     if (!generatedTeams || teamIndex >= generatedTeams.length) {
         alert('Team not found!');
@@ -283,6 +511,8 @@ async function saveTeamAsMatch(teamIndex) {
 function showMatchSelectionModal(teamIndex, team) {
     const modal = document.createElement('div');
     modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center;';
+    const suggestedMatchId = team.match_id ? String(team.match_id) : '';
+    const suggestedMatchName = team.match_label || `Game ${teamIndex + 1} - ${new Date().toLocaleDateString()}`;
     
     let modalContent = `
         <div style="background: white; padding: 30px; border-radius: 0; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
@@ -300,7 +530,8 @@ function showMatchSelectionModal(teamIndex, team) {
         
         availableMatches.forEach(match => {
             const displayName = `${match.match_date} - vs ${match.opponent} (${match.location || 'TBD'})`;
-            modalContent += `<option value="${match.id}" data-name="${displayName}">${displayName}</option>`;
+            const selected = String(match.id) === suggestedMatchId ? ' selected' : '';
+            modalContent += `<option value="${match.id}" data-name="${displayName}"${selected}>${displayName}</option>`;
         });
         
         modalContent += `
@@ -317,7 +548,7 @@ function showMatchSelectionModal(teamIndex, team) {
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #1e1f28;">Match Name:</label>
                 <input type="text" id="matchNameInput" placeholder="e.g., vs Eagles - Jan 20" 
-                       value="Game ${teamIndex + 1} - ${new Date().toLocaleDateString()}"
+                       value="${suggestedMatchName}"
                        style="width: 100%; padding: 10px; border: 2px solid #d2c5b6; border-radius: 0; font-size: 14px;">
             </div>
             <div style="display: flex; gap: 10px;">
@@ -458,7 +689,8 @@ function copyTeamsToClipboard() {
 
     let text = '⚽ GENERATED TEAMS\n\n';
     teams.forEach((team, index) => {
-        text += `GAME ${index + 1}\n`;
+        text += `${team.match_label || `GAME ${index + 1}`}\n`;
+        if (team.invite_all_players) text += `👥 All players invited\n`;
         text += `Starting XI:\n`;
         team.starters.forEach(player => {
             text += `  • ${player.name}${player.position === 'GK' ? ' 🧤' : ''}\n`;
