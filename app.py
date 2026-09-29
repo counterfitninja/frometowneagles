@@ -1291,6 +1291,7 @@ def team_generator():
         matches=matches,
         selected_match_ids=[match['id'] for match in matches[:20]],
         invite_all_match_ids=[],
+        unavailable_by_match={},
         team_size=12,
         num_games=len(matches) if matches else 4,
         version=VERSION
@@ -1380,6 +1381,14 @@ def generate_teams():
     players = [dict(p) for p in players_list]
     matches = [dict(m) for m in matches_list]
     available_match_ids = {str(match['id']) for match in matches}
+    active_player_ids = {str(player['id']) for player in players}
+    unavailable_by_match = {
+        str(match['id']): [
+            player_id for player_id in request.form.getlist(f"unavailable_for_{match['id']}")
+            if player_id in active_player_ids
+        ]
+        for match in matches
+    }
     selected_matches = [match for match in matches if str(match['id']) in submitted_match_ids]
     selected_match_ids = [match['id'] for match in selected_matches]
     invite_all_match_ids = requested_invite_all_ids.intersection({str(match_id) for match_id in selected_match_ids})
@@ -1392,6 +1401,7 @@ def generate_teams():
             matches=matches,
             selected_match_ids=selected_match_ids,
             invite_all_match_ids=list(invite_all_match_ids),
+            unavailable_by_match=unavailable_by_match,
             team_size=team_size,
             num_games=requested_num_games,
             version=VERSION
@@ -1414,103 +1424,144 @@ def generate_teams():
     if team_size < 9 or team_size > 15:
         return render_generator_error('Team size must be between 9 and 15 players.')
 
-    standard_size_required = not selected_matches or any(
-        str(match['id']) not in invite_all_match_ids for match in selected_matches
-    )
-    if standard_size_required and len(players_list) < team_size:
-        return render_generator_error(f'Not enough players! You have {len(players_list)} players but need at least {team_size}.')
-    
-    # Randomize player order at start to ensure different results each time
+    # Randomize player order at start to ensure different results each time.
     random.shuffle(players)
-    
-    # Separate goalkeepers and outfield players
+
     goalkeepers = [p for p in players if p['position'] == 'GK']
-    outfield = [p for p in players if p['position'] != 'GK']
-    
-    if len(goalkeepers) == 0:
+    if not goalkeepers:
         return render_generator_error('No goalkeepers found! Please add at least one player with position "GK".')
-    
-    # Generate teams
-    teams = []
-    player_game_count = defaultdict(int)  # Track how many games each player plays
-    
+
+    # Validate each fixture before generating so exclusions cannot produce a
+    # silently undersized team or a game without a goalkeeper.
+    game_plans = []
     for game in range(num_games):
         game_match = selected_matches[game] if selected_matches else None
-        invite_all_players = bool(game_match and str(game_match['id']) in invite_all_match_ids)
-        game_team_size = len(players) if invite_all_players else team_size
+        match_key = str(game_match['id']) if game_match else None
+        unavailable_ids = set(unavailable_by_match.get(match_key, [])) if match_key else set()
+        eligible_players = [p for p in players if str(p['id']) not in unavailable_ids]
+        invite_all_players = bool(game_match and match_key in invite_all_match_ids)
+        game_team_size = len(eligible_players) if invite_all_players else team_size
+        game_label = (
+            f"{game_match['match_date']} vs {game_match['opponent']}"
+            if game_match else f"Game {game + 1}"
+        )
 
-        # Sort players by games played (least to most), with random tiebreaker
-        sorted_players = sorted(players, key=lambda p: (player_game_count[p['id']], random.random()))
-        
-        # Pick goalkeepers first - ensure at least 1, but allow 2 if available
-        team_gks = []
-        available_gks = [gk for gk in goalkeepers if player_game_count[gk['id']] < num_games]
-        
-        if len(available_gks) >= 2:
-            # Take the 2 goalkeepers with least games, randomize if tied
-            team_gks = sorted(available_gks, key=lambda p: (player_game_count[p['id']], random.random()))[:2]
-        elif len(available_gks) >= 1:
-            team_gks = [available_gks[0]]
+        if game_team_size < 9:
+            return render_generator_error(
+                f'{game_label} has only {len(eligible_players)} available players; at least 9 are needed.'
+            )
+        if len(eligible_players) < game_team_size:
+            return render_generator_error(
+                f'{game_label} has only {len(eligible_players)} available players; '
+                f'{game_team_size} are needed after exclusions.'
+            )
+
+        eligible_gks = [p for p in eligible_players if p['position'] == 'GK']
+        eligible_outfield = [p for p in eligible_players if p['position'] != 'GK']
+        if not eligible_gks:
+            return render_generator_error(f'{game_label} has no available goalkeeper.')
+        if not invite_all_players and len(eligible_outfield) + min(2, len(eligible_gks)) < game_team_size:
+            return render_generator_error(
+                f'{game_label} does not have enough available outfield players to fill a team of {team_size}.'
+            )
+
+        game_plans.append({
+            'match': game_match,
+            'unavailable_ids': unavailable_ids,
+            'eligible_players': eligible_players,
+            'eligible_gks': eligible_gks,
+            'eligible_outfield': eligible_outfield,
+            'invite_all_players': invite_all_players,
+            'team_size': game_team_size,
+        })
+
+    # Weight each player's selection by the games they can actually attend.
+    # This keeps scarce availability from being crowded out by fully available players.
+    eligible_game_counts = defaultdict(int)
+    total_team_slots = 0
+    for plan in game_plans:
+        total_team_slots += plan['team_size']
+        for player in plan['eligible_players']:
+            eligible_game_counts[player['id']] += 1
+    average_games = total_team_slots / len(players) if players else 0
+
+    def fairness_key(player, player_game_count):
+        eligible_games = eligible_game_counts[player['id']]
+        target_games = min(eligible_games, average_games) if average_games else eligible_games
+        normalized_count = player_game_count[player['id']] / target_games if target_games else float('inf')
+        return (normalized_count, player_game_count[player['id']], eligible_games, random.random())
+
+    teams = []
+    player_game_count = defaultdict(int)
+
+    for plan in game_plans:
+        eligible_players = plan['eligible_players']
+        if plan['invite_all_players']:
+            full_team = eligible_players[:]
         else:
-            # All goalkeepers have played all games, just pick one randomly
-            team_gks = [random.choice(goalkeepers)]
-        
-        # Pick outfield players
-        available_outfield = [p for p in outfield]
-        
-        # Calculate remaining spots
-        remaining_spots = game_team_size - len(team_gks)
-        
-        # Pick players with least games first, randomize within same game count
-        team_outfield = sorted(available_outfield, key=lambda p: (player_game_count[p['id']], random.random()))[:remaining_spots]
-        
-        # Combine team
-        full_team = team_gks + team_outfield
-        random.shuffle(full_team)  # Randomize order within team
-        
-        # Ensure at least 1 GK in starters
-        starters = []
-        subs = []
-        
-        # Put one GK in starters
-        gk_in_starters = [p for p in full_team if p['position'] == 'GK'][0]
-        starters.append(gk_in_starters)
-        remaining = [p for p in full_team if p['id'] != gk_in_starters['id']]
-        
-        # Fill remaining starters (8 more to make 9)
+            # Pick one or two available goalkeepers first, then fill remaining
+            # places with the least-used eligible outfield players.
+            team_gks = sorted(
+                plan['eligible_gks'],
+                key=lambda player: fairness_key(player, player_game_count)
+            )[:min(2, len(plan['eligible_gks']))]
+            remaining_spots = plan['team_size'] - len(team_gks)
+            team_outfield = sorted(
+                plan['eligible_outfield'],
+                key=lambda player: fairness_key(player, player_game_count)
+            )[:remaining_spots]
+            full_team = team_gks + team_outfield
+
+        random.shuffle(full_team)
+
+        # Ensure at least one goalkeeper is in the starting nine.
+        gk_in_starters = next(player for player in full_team if player['position'] == 'GK')
+        starters = [gk_in_starters]
+        remaining = [player for player in full_team if player['id'] != gk_in_starters['id']]
         starters.extend(remaining[:8])
-        
-        # Rest are subs
         subs = remaining[8:]
-        
-        # Update game counts
-        for p in full_team:
-            player_game_count[p['id']] += 1
-        
-        # Find players not in this game
-        team_player_ids = set([p['id'] for p in full_team])
-        not_playing = [p for p in players if p['id'] not in team_player_ids]
-        
+
+        for player in full_team:
+            player_game_count[player['id']] += 1
+
+        team_player_ids = {player['id'] for player in full_team}
+        unavailable_ids = plan['unavailable_ids']
+        not_playing = [
+            player for player in eligible_players
+            if player['id'] not in team_player_ids
+        ]
+        unavailable = [
+            player for player in players
+            if str(player['id']) in unavailable_ids
+        ]
+        game_match = plan['match']
+
         teams.append({
             'starters': starters,
             'subs': subs,
             'not_playing': not_playing,
+            'unavailable': unavailable,
             'match_id': game_match['id'] if game_match else None,
             'match_label': (
                 f"{game_match['match_date']} - vs {game_match['opponent']}"
                 if game_match else None
             ),
-            'invite_all_players': invite_all_players
+            'invite_all_players': plan['invite_all_players']
         })
     
-    # Calculate stats
-    max_games_missed = max([num_games - player_game_count[p['id']] for p in players])
-    
+    # Count missed games only where a player was available to attend.
+    max_games_missed = max(
+        eligible_game_counts[player['id']] - player_game_count[player['id']]
+        for player in players
+    )
+    unavailable_count = sum(len(plan['unavailable_ids']) for plan in game_plans)
+
     stats = {
         'total_players': len(players),
         'num_games': num_games,
         'team_size': team_size,
         'max_games_missed': max_games_missed,
+        'unavailable_count': unavailable_count,
         'invite_all_count': len(invite_all_match_ids)
     }
     
@@ -1521,6 +1572,7 @@ def generate_teams():
                          matches=matches,
                          selected_match_ids=selected_match_ids,
                          invite_all_match_ids=list(invite_all_match_ids),
+                         unavailable_by_match=unavailable_by_match,
                          team_size=team_size,
                          num_games=num_games,
                          version=VERSION)

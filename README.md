@@ -8,7 +8,7 @@ This is a Flask-based football team management application designed to run on Pt
 - Drag-and-drop pitch interface
 - Public pages for parents/players
 - Offline PWA support
-- Team generator with balanced selection
+- Team generator with balanced selection and fixture-specific player availability
 
 ## Requirements
 - Python 3.8+
