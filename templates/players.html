@@ -5,6 +5,7 @@
 {% block content %}
 <div class="card">
     <h2>👥 Player Management</h2>
+    <p style="color: #756d66; margin: -8px 0 20px;">Retire a player to keep their historic stats while removing them from future formations, result entry, and team generation.</p>
     
     <form method="POST" action="/players/add" style="background: #f7efe5; padding: 20px; border-radius: 0; margin-bottom: 30px;">
         <h3 style="margin-bottom: 15px;">Add New Player</h3>
@@ -46,7 +47,8 @@
                 <th>Name</th>
                 <th>Position</th>
                 <th>Rating</th>
-                <th style="width: 150px;">Actions</th>
+                <th>Status</th>
+                <th style="width: 260px;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -58,11 +60,23 @@
                     {% for i in range(player.rating) %}⭐{% endfor %}
                 </td>
                 <td>
-                    <button onclick="editPlayer({{ player.id }}, '{{ player.name }}', '{{ player.position }}', {{ player.rating }})" class="btn" style="padding: 6px 12px; font-size: 12px; background: #2d3443;">
+                    {% if player.status == 'retired' %}
+                    <span style="color: #756d66; font-weight: bold;">Retired</span>
+                    {% else %}
+                    <span style="color: #39583c; font-weight: bold;">Active</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <button onclick="editPlayer({{ player.id }}, {{ player.name | tojson }}, {{ player.position | tojson }}, {{ player.rating }}, {{ player.status | tojson }})" class="btn" style="padding: 6px 12px; font-size: 12px; background: #2d3443;">
                         ✏️ Edit
                     </button>
+                    <form method="POST" action="/players/{{ player.id }}/toggle-status" style="display: inline;">
+                        <button type="submit" class="btn {% if player.status == 'retired' %}btn-success{% else %}btn-danger{% endif %}" style="padding: 6px 12px; font-size: 12px;" onclick="return confirm('{{ 'Reactivate' if player.status == 'retired' else 'Retire' }} {{ player.name }}?')">
+                            {% if player.status == 'retired' %}↩️ Reactivate{% else %}⏸️ Retire{% endif %}
+                        </button>
+                    </form>
                     <form method="POST" action="/players/{{ player.id }}/delete" style="display: inline;">
-                        <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="return confirm('Delete {{ player.name }}?')">
+                        <button type="submit" class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="return confirm('Delete {{ player.name }} permanently? Retirement keeps historic stats.')">
                             🗑️ Delete
                         </button>
                     </form>
@@ -107,6 +121,14 @@
                     <option value="5">⭐⭐⭐⭐⭐ 5</option>
                 </select>
             </div>
+
+            <div class="form-group">
+                <label for="editStatus">Status</label>
+                <select id="editStatus" name="status">
+                    <option value="active">Active</option>
+                    <option value="retired">Retired</option>
+                </select>
+            </div>
             
             <div style="display: flex; gap: 10px;">
                 <button type="submit" class="btn btn-success">Save Changes</button>
@@ -117,10 +139,11 @@
 </div>
 
 <script>
-function editPlayer(id, name, position, rating) {
+function editPlayer(id, name, position, rating, status) {
     document.getElementById('editName').value = name;
     document.getElementById('editPosition').value = position;
     document.getElementById('editRating').value = rating;
+    document.getElementById('editStatus').value = status;
     document.getElementById('editForm').action = `/players/${id}/edit`;
     document.getElementById('editModal').style.display = 'flex';
 }

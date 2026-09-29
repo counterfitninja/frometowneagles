@@ -54,9 +54,15 @@ def init_db():
                 name TEXT NOT NULL,
                 position TEXT,
                 rating INTEGER DEFAULT 3,
+                status TEXT NOT NULL DEFAULT 'active',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # Existing installations need the lifecycle column added without losing players.
+        player_columns = {column['name'] for column in conn.execute('PRAGMA table_info(players)').fetchall()}
+        if 'status' not in player_columns:
+            conn.execute("ALTER TABLE players ADD COLUMN status TEXT NOT NULL DEFAULT 'active'")
         
         conn.execute('''
             CREATE TABLE IF NOT EXISTS formations (
@@ -209,7 +215,10 @@ def index():
 @login_required
 def players():
     with get_db() as conn:
-        players_list = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
+        players_list = conn.execute('''
+            SELECT * FROM players
+            ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, name
+        ''').fetchall()
     return render_template('players.html', players=players_list, version=VERSION)
 
 @app.route('/stats')
@@ -234,6 +243,7 @@ def stats():
         'id': None,
         'name': 'Unknown',
         'position': '',
+        'status': 'active',
         'goals': 0,
         'assists': 0,
         'motm': 0
@@ -244,7 +254,8 @@ def stats():
         player_stats[player_id].update({
             'id': player['id'],
             'name': player['name'],
-            'position': player['position'] or ''
+            'position': player['position'] or '',
+            'status': player['status']
         })
 
     matches_with_results = []
@@ -268,7 +279,8 @@ def stats():
                     player_stats[scorer_key].update({
                         'id': player['id'],
                         'name': player['name'],
-                        'position': player['position'] or ''
+                        'position': player['position'] or '',
+                        'status': player['status']
                     })
                 player_stats[scorer_key]['goals'] += 1
                 total_goals += 1
@@ -283,7 +295,8 @@ def stats():
                     player_stats[assist_key].update({
                         'id': player['id'],
                         'name': player['name'],
-                        'position': player['position'] or ''
+                        'position': player['position'] or '',
+                        'status': player['status']
                     })
                 player_stats[assist_key]['assists'] += 1
                 total_assists += 1
@@ -327,8 +340,8 @@ def add_player():
     rating = request.form.get('rating', 3, type=int)
     
     with get_db() as conn:
-        conn.execute('INSERT INTO players (name, position, rating) VALUES (?, ?, ?)',
-                    (name, position, rating))
+        conn.execute('INSERT INTO players (name, position, rating, status) VALUES (?, ?, ?, ?)',
+                    (name, position, rating, 'active'))
         conn.commit()
     
     return redirect(url_for('players'))
@@ -348,12 +361,29 @@ def edit_player(player_id):
     name = request.form.get('name')
     position = request.form.get('position', '')
     rating = request.form.get('rating', 3, type=int)
+    status = request.form.get('status', 'active')
+    if status not in {'active', 'retired'}:
+        status = 'active'
     
     with get_db() as conn:
-        conn.execute('UPDATE players SET name = ?, position = ?, rating = ? WHERE id = ?',
-                    (name, position, rating, player_id))
+        conn.execute('''
+            UPDATE players
+            SET name = ?, position = ?, rating = ?, status = ?
+            WHERE id = ?
+        ''', (name, position, rating, status, player_id))
         conn.commit()
     
+    return redirect(url_for('players'))
+
+@app.route('/players/<int:player_id>/toggle-status', methods=['POST'])
+@login_required
+def toggle_player_status(player_id):
+    with get_db() as conn:
+        player = conn.execute('SELECT status FROM players WHERE id = ?', (player_id,)).fetchone()
+        if player:
+            new_status = 'retired' if player['status'] == 'active' else 'active'
+            conn.execute('UPDATE players SET status = ? WHERE id = ?', (new_status, player_id))
+            conn.commit()
     return redirect(url_for('players'))
 
 @app.route('/pitch')
@@ -388,7 +418,12 @@ def pitch():
                     formation_data = None
     
     with get_db() as conn:
-        players_list = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
+        # Only active players can be added to a new or edited formation.
+        players_list = conn.execute('''
+            SELECT * FROM players
+            WHERE status = 'active'
+            ORDER BY name
+        ''').fetchall()
 
     import json as _json_pitch
     sub_counts = {}
@@ -643,9 +678,44 @@ def match_result_view(match_id):
         if not row:
             return redirect(url_for('matches'))
 
-        players_list = conn.execute('SELECT id, name, position FROM players ORDER BY name').fetchall()
+        # Keep retired players already recorded in this result available for edits,
+        # while excluding them from a new result's player picker.
+        referenced_player_ids = set()
+        try:
+            saved_goals = _json.loads(row['goals_json'] or '[]')
+        except _json.JSONDecodeError:
+            saved_goals = []
+        for goal in saved_goals:
+            if isinstance(goal, dict):
+                for key in ('scorer_id', 'assist_id'):
+                    if goal.get(key):
+                        referenced_player_ids.add(str(goal[key]))
+        if row['motm_player_id']:
+            referenced_player_ids.add(str(row['motm_player_id']))
 
-    squad = [{'id': str(p['id']), 'name': p['name'], 'position': p['position'] or ''} for p in players_list]
+        if referenced_player_ids:
+            placeholders = ', '.join('?' for _ in referenced_player_ids)
+            players_list = conn.execute(f'''
+                SELECT id, name, position, status FROM players
+                WHERE status = 'active' OR id IN ({placeholders})
+                ORDER BY name
+            ''', tuple(referenced_player_ids)).fetchall()
+        else:
+            players_list = conn.execute('''
+                SELECT id, name, position, status FROM players
+                WHERE status = 'active'
+                ORDER BY name
+            ''').fetchall()
+
+    squad = [
+        {
+            'id': str(p['id']),
+            'name': p['name'],
+            'position': p['position'] or '',
+            'status': p['status']
+        }
+        for p in players_list
+    ]
 
     match_date_display = ''
     if row['match_date']:
@@ -1200,7 +1270,11 @@ def link_formation_to_match(match_id, formation_id):
 @login_required
 def team_generator():
     with get_db() as conn:
-        players_list = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
+        players_list = conn.execute('''
+            SELECT * FROM players
+            WHERE status = 'active'
+            ORDER BY name
+        ''').fetchall()
         # Get matches without formations
         matches_list = conn.execute('''
             SELECT id, match_date, opponent, location 
@@ -1274,9 +1348,13 @@ def generate_teams():
     num_games = int(request.form.get('num_games', 4))
     team_size = int(request.form.get('team_size', 11))
     
-    # Get all players
+    # Retired players are intentionally excluded from newly generated teams.
     with get_db() as conn:
-        players_list = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
+        players_list = conn.execute('''
+            SELECT * FROM players
+            WHERE status = 'active'
+            ORDER BY name
+        ''').fetchall()
     
     if len(players_list) < team_size:
         return render_template('team_generator.html', 
