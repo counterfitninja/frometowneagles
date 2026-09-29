@@ -198,6 +198,90 @@
         cursor: not-allowed;
     }
 
+    .game-actions {
+        display: flex;
+        align-items: flex-end;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 230px;
+    }
+
+    .availability-panel {
+        width: 100%;
+        max-width: 300px;
+        border: 1px solid #d2c5b6;
+        border-radius: 8px;
+        background: #f7efe5;
+    }
+
+    .availability-panel.is-disabled {
+        opacity: 0.5;
+    }
+
+    .availability-panel summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        color: #1e1f28;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 700;
+        list-style: none;
+    }
+
+    .availability-panel summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .availability-panel summary::after {
+        content: '⌄';
+        color: #756d66;
+        font-size: 16px;
+    }
+
+    .availability-count {
+        margin-left: auto;
+        color: #756d66;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .availability-picker {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        max-height: 190px;
+        overflow-y: auto;
+        padding: 0 10px 10px;
+        border-top: 1px solid #d2c5b6;
+    }
+
+    .availability-player {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        padding-top: 8px;
+        color: #756d66;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .availability-player span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .unavailable-checkbox {
+        width: auto;
+        flex: 0 0 auto;
+        accent-color: #c41e3a;
+    }
+
     .empty-game-picker {
         background: white;
         border: 1px dashed #d2c5b6;
@@ -212,6 +296,10 @@
         color: #756d66;
         font-size: 12px;
         line-height: 1.5;
+    }
+
+    .availability-panel input:disabled {
+        cursor: not-allowed;
     }
 
     .invite-notice {
@@ -237,6 +325,16 @@
 
         .invite-toggle {
             padding-left: 30px;
+        }
+
+        .game-actions {
+            align-items: stretch;
+            min-width: 0;
+            width: 100%;
+        }
+
+        .availability-panel {
+            max-width: none;
         }
     }
 
@@ -279,6 +377,7 @@
                 {% if matches %}
                 <div class="game-picker" id="gamePicker">
                     {% for match in matches %}
+                    {% set unavailable_ids = unavailable_by_match.get(match.id|string, []) %}
                     <div class="game-option" data-game-option>
                         <div class="game-main">
                             <input
@@ -294,21 +393,44 @@
                                 <span>📍 {{ match.location or 'Location TBD' }}</span>
                             </label>
                         </div>
-                        <label class="invite-toggle" for="invite-{{ match.id }}">
-                            <input
-                                type="checkbox"
-                                class="invite-checkbox"
-                                id="invite-{{ match.id }}"
-                                name="invite_all_for"
-                                value="{{ match.id }}"
-                                {% if match.id|string in invite_all_match_ids|default([]) %}checked{% endif %}
-                            >
-                            <span>Invite all players</span>
-                        </label>
+                        <div class="game-actions">
+                            <label class="invite-toggle" for="invite-{{ match.id }}">
+                                <input
+                                    type="checkbox"
+                                    class="invite-checkbox"
+                                    id="invite-{{ match.id }}"
+                                    name="invite_all_for"
+                                    value="{{ match.id }}"
+                                    {% if match.id|string in invite_all_match_ids|default([]) %}checked{% endif %}
+                                >
+                                <span>Invite all available players</span>
+                            </label>
+                            <details class="availability-panel">
+                                <summary>
+                                    <span>Set availability</span>
+                                    <span class="availability-count">{{ unavailable_ids|length }} unavailable</span>
+                                </summary>
+                                <div class="availability-picker">
+                                    {% for player in players %}
+                                    <label class="availability-player" for="unavailable-{{ match.id }}-{{ player.id }}">
+                                        <input
+                                            type="checkbox"
+                                            class="unavailable-checkbox"
+                                            id="unavailable-{{ match.id }}-{{ player.id }}"
+                                            name="unavailable_for_{{ match.id }}"
+                                            value="{{ player.id }}"
+                                            {% if player.id|string in unavailable_ids %}checked{% endif %}
+                                        >
+                                        <span>{{ player.name }}</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </details>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
-                <p class="selection-help">Select only the games you want to generate. “Invite all players” includes every active player for that fixture instead of limiting it to the team size.</p>
+                <p class="selection-help">Select only the games you want to generate. Set availability for each fixture before generating; unavailable players are left out, and everyone else is balanced across the games they can attend. “Invite all available players” ignores the team-size limit for that fixture.</p>
                 {% else %}
                 <div class="empty-game-picker">
                     No upcoming games without formations. <a href="/matches">Add or review games in Match Schedule</a>, or use a manual game count below.
@@ -330,7 +452,7 @@
             <button type="submit" id="generateButton" class="btn btn-success" style="flex: 0;">🎲 Generate Teams</button>
         </form>
         <p style="font-size: 12px; color: #756d66; margin-top: 10px;">
-            ℹ️ Teams include at least 1 goalkeeper and distribute playing time across the selected games.
+            ℹ️ Teams include at least 1 goalkeeper. Unavailable players are excluded from that fixture, while available players are distributed as evenly as possible.
         </p>
     </div>
 
@@ -351,9 +473,15 @@
                 <div class="stat-value">{{ stats.team_size }}</div>
             </div>
             <div class="stat-item">
-                <div class="stat-label">Max Games Missed</div>
+                <div class="stat-label">Max Eligible Games Missed</div>
                 <div class="stat-value">{{ stats.max_games_missed }}</div>
             </div>
+            {% if stats.unavailable_count %}
+            <div class="stat-item">
+                <div class="stat-label">Availability Exclusions</div>
+                <div class="stat-value">{{ stats.unavailable_count }}</div>
+            </div>
+            {% endif %}
             {% if stats.invite_all_count %}
             <div class="stat-item">
                 <div class="stat-label">Games With Everyone Invited</div>
@@ -378,7 +506,7 @@
         </div>
 
         {% if team.invite_all_players %}
-        <div class="invite-notice">👥 All {{ stats.total_players }} active players are invited to this game.</div>
+        <div class="invite-notice">👥 All {{ team.starters|length + team.subs|length }} available players are invited to this game.</div>
         {% endif %}
 
         <div>
@@ -405,9 +533,23 @@
             </div>
         </div>
 
+        {% if team.unavailable %}
+        <div style="margin-top: 15px; background: #fff0f1; padding: 12px; border-radius: 12px; border: 1px solid #c41e3a;">
+            <h4 style="color: #1e1f28; margin-bottom: 10px; font-size: 16px;">🚫 Unavailable for This Game</h4>
+            <div class="player-grid">
+                {% for player in team.unavailable %}
+                <div style="background: #fff; color: #1e1f28; padding: 8px 12px; border-radius: 0; font-size: 13px; font-weight: 500; border: 1px solid #c41e3a;">
+                    {{ player.name }}
+                    {% if player.position == 'GK' %}🧤{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         {% if team.not_playing %}
         <div style="margin-top: 15px; background: #efe5d8; padding: 12px; border-radius: 12px; border: 1px solid #d4af37;">
-            <h4 style="color: #1e1f28; margin-bottom: 10px; font-size: 16px;">⏸️ Not Playing This Game</h4>
+            <h4 style="color: #1e1f28; margin-bottom: 10px; font-size: 16px;">⏸️ Resting This Game</h4>
             <div class="player-grid">
                 {% for player in team.not_playing %}
                 <div style="background: #fff; color: #1e1f28; padding: 8px 12px; border-radius: 0; font-size: 13px; font-weight: 500; border: 1px solid #d4af37;">
@@ -484,14 +626,22 @@ function syncGameSelection() {
         const gameCheckbox = option.querySelector('.game-checkbox');
         const inviteCheckbox = option.querySelector('.invite-checkbox');
         const inviteLabel = option.querySelector('.invite-toggle');
+        const availabilityPanel = option.querySelector('.availability-panel');
+        const unavailableCheckboxes = Array.from(option.querySelectorAll('.unavailable-checkbox'));
+        const availabilityCount = option.querySelector('.availability-count');
         option.classList.toggle('is-selected', gameCheckbox.checked);
         inviteCheckbox.disabled = !gameCheckbox.checked;
         inviteLabel.classList.toggle('is-disabled', !gameCheckbox.checked);
-        if (!gameCheckbox.checked) inviteCheckbox.checked = false;
+        unavailableCheckboxes.forEach(checkbox => {
+            checkbox.disabled = !gameCheckbox.checked;
+        });
+        availabilityPanel.classList.toggle('is-disabled', !gameCheckbox.checked);
+        const unavailableCount = unavailableCheckboxes.filter(checkbox => checkbox.checked).length;
+        availabilityCount.textContent = `${unavailableCount} unavailable`;
     });
 }
 
-document.querySelectorAll('.game-checkbox').forEach(checkbox => {
+document.querySelectorAll('.game-checkbox, .unavailable-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', syncGameSelection);
 });
 syncGameSelection();
