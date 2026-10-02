@@ -985,10 +985,57 @@ def matches_overview_text():
     
     return text_output, 200, {'Content-Type': 'text/plain; charset=utf-8'}
 
+def public_match_team(raw_match, all_players):
+    """Resolve public team lists, including substitutes, from a saved formation."""
+    import json
+    match = dict(raw_match)
+    playing_ids = set()
+    if match['formation_data']:
+        data = json.loads(match['formation_data'])
+        for formation in data.get('formations', []):
+            for player in formation.get('players', []) + formation.get('subs', []):
+                playing_ids.add(str(player['id']))
+    match['team_selected'] = bool(playing_ids)
+    match['playing'] = [dict(p) for p in all_players if str(p['id']) in playing_ids]
+    match['not_playing'] = [
+        dict(p) for p in all_players
+        if match['team_selected'] and str(p['id']) not in playing_ids
+    ]
+    return match
+
+
+@app.route('/public/players/<int:player_id>')
+def public_player(player_id):
+    """Show upcoming non-playing dates without requiring a manager login."""
+    today = datetime.now().strftime('%Y-%m-%d')
+    with get_db() as conn:
+        player = conn.execute('SELECT id, name FROM players WHERE id = ?', (player_id,)).fetchone()
+        if player is None:
+            abort(404)
+        upcoming = conn.execute('''
+            SELECT m.match_date, m.opponent, m.location, f.data AS formation_data
+            FROM matches m
+            LEFT JOIN formations f ON m.formation_id = f.id
+            WHERE m.match_date >= ?
+            ORDER BY m.match_date, m.id
+        ''', (today,)).fetchall()
+    not_playing = []
+    unselected = []
+    for raw_match in upcoming:
+        match = public_match_team(raw_match, [player])
+        if not match['team_selected']:
+            unselected.append(match)
+        elif match['not_playing']:
+            not_playing.append(match)
+    return render_template(
+        'public_player.html', player=player, not_playing=not_playing,
+        unselected=unselected, version=VERSION
+    )
+
+
 @app.route('/public/next-match')
 def public_next_match():
     """Public page showing the next upcoming match and all upcoming matches"""
-    import json
     today = datetime.now().strftime('%Y-%m-%d')
 
     with get_db() as conn:
@@ -1005,38 +1052,17 @@ def public_next_match():
         all_players = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
 
     if not upcoming:
-        return render_template('public_next_match.html', match=None, upcoming_matches=[], version=VERSION)
+        return render_template('public_next_match.html', match=None, upcoming_matches=[], players=all_players, version=VERSION)
 
-    def process_match(raw_match):
-        match_dict = dict(raw_match)
-        if match_dict['formation_data']:
-            formation_data = json.loads(match_dict['formation_data'])
-            playing_player_ids = set()
-            if 'formations' in formation_data:
-                for formation in formation_data['formations']:
-                    for player in formation.get('players', []):
-                        playing_player_ids.add(str(player['id']))
-                    for sub in formation.get('subs', []):
-                        playing_player_ids.add(str(sub['id']))
-            playing = [dict(p) for p in all_players if str(p['id']) in playing_player_ids]
-            not_playing = [dict(p) for p in all_players if str(p['id']) not in playing_player_ids]
-            match_dict['playing'] = sorted(playing, key=lambda x: x['name'])
-            match_dict['not_playing'] = sorted(not_playing, key=lambda x: x['name'])
-        else:
-            match_dict['playing'] = []
-            match_dict['not_playing'] = []
-        return match_dict
-
-    all_upcoming = [process_match(m) for m in upcoming]
+    all_upcoming = [public_match_team(m, all_players) for m in upcoming]
     next_match = all_upcoming[0]
     future_matches = all_upcoming[1:]
 
-    return render_template('public_next_match.html', match=next_match, upcoming_matches=future_matches, version=VERSION)
+    return render_template('public_next_match.html', match=next_match, upcoming_matches=future_matches, players=all_players, version=VERSION)
 
 @app.route('/public/overview')
 def public_overview():
     """Public page showing all matches overview"""
-    import json
     
     with get_db() as conn:
         # Get all matches with formations
@@ -1054,29 +1080,7 @@ def public_overview():
     # Process each match
     matches_with_teams = []
     for match in matches_list:
-        match_dict = dict(match)
-        
-        if match_dict['formation_data']:
-            formation_data = json.loads(match_dict['formation_data'])
-            
-            # Get players in formations
-            playing_player_ids = set()
-            if 'formations' in formation_data:
-                for formation in formation_data['formations']:
-                    for player in formation.get('players', []):
-                        playing_player_ids.add(str(player['id']))
-                    for sub in formation.get('subs', []):
-                        playing_player_ids.add(str(sub['id']))
-            
-            # Separate playing vs not playing
-            playing = [dict(p) for p in all_players if str(p['id']) in playing_player_ids]
-            not_playing = [dict(p) for p in all_players if str(p['id']) not in playing_player_ids]
-            
-            match_dict['playing'] = sorted(playing, key=lambda x: x['name'])
-            match_dict['not_playing'] = sorted(not_playing, key=lambda x: x['name'])
-        else:
-            match_dict['playing'] = []
-            match_dict['not_playing'] = [dict(p) for p in all_players]
+        match_dict = public_match_team(match, all_players)
         
         matches_with_teams.append(match_dict)
     
@@ -1100,6 +1104,7 @@ def public_overview():
     
     return render_template('public_overview.html', 
                          matches=matches_with_teams, 
+                         players=all_players,
                          player_stats=stats_list,
                          version=VERSION)
 

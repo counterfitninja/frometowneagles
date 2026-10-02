@@ -1,0 +1,41 @@
+{% extends 'public_overview.html' %}
+
+{% block page_title %}{{ player.name }} - Not Playing{% endblock %}
+{% block heading %}{{ player.name }}{% endblock %}
+{% block extra_navigation %}
+<a href="{{ url_for('public_overview') }}" class="nav-btn">All Matches</a>
+{% endblock %}
+
+{% block content %}
+<section class="card player-schedule" aria-labelledby="not-playing-heading">
+    <h2 id="not-playing-heading">Not Playing</h2>
+    <p>Upcoming fixtures where you are not in the selected team.</p>
+    {% for match in not_playing %}
+    <article class="player-fixture">
+        <time datetime="{{ match.match_date }}">{{ match.match_date | ukdate }}</time>
+        <div>
+            <h3>vs {{ match.opponent }}</h3>
+            <p>{{ match.location or 'TBD' }}</p>
+        </div>
+    </article>
+    {% else %}
+    <p class="schedule-empty">You have no upcoming non-playing dates in the selected teams.</p>
+    {% endfor %}
+</section>
+
+{% if unselected %}
+<section class="card player-schedule" aria-labelledby="unselected-heading">
+    <h2 id="unselected-heading">Team not selected</h2>
+    <p>Your playing status for these fixtures is not confirmed yet.</p>
+    {% for match in unselected %}
+    <article class="player-fixture pending">
+        <time datetime="{{ match.match_date }}">{{ match.match_date | ukdate }}</time>
+        <div>
+            <h3>vs {{ match.opponent }}</h3>
+            <p>{{ match.location or 'TBD' }}</p>
+        </div>
+    </article>
+    {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

@@ -7,6 +7,7 @@ This is a Flask-based football team management application designed to run on Pt
 - Match scheduling and team formations
 - Drag-and-drop pitch interface
 - Public pages for parents/players
+- Click a player name on either public page to see upcoming non-playing dates without logging in (unselected teams are shown separately)
 - Offline PWA support
 - Team generator with balanced selection and fixture-specific player availability
 
@@ -62,6 +63,7 @@ To use a different path, set the `DATABASE_PATH` environment variable.
 - **Public Pages**: 
   - `/public/next-match` - Next upcoming match
   - `/public/overview` - All matches overview
+  - `/public/players/<player_id>` - A player's upcoming non-playing dates
 - **Default Password**: Set via `ADMIN_PASSWORD` environment variable
 
 ## File Structure

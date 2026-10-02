@@ -1,0 +1,74 @@
+a.player-chip,
+a.upcoming-not-playing-chip {
+    display: block;
+    text-decoration: none;
+}
+
+a.player-chip:hover,
+a.upcoming-not-playing-chip:hover {
+    text-decoration: underline;
+}
+
+a.player-chip:focus-visible,
+a.upcoming-not-playing-chip:focus-visible,
+.player-picker summary:focus-visible {
+    outline: 3px solid var(--fte-dugout);
+    outline-offset: 3px;
+}
+
+.player-picker {
+    margin-bottom: 20px;
+    padding: 20px;
+}
+
+.player-picker summary {
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.player-picker p,
+.player-schedule > p {
+    margin: 12px 0 18px;
+}
+
+.player-schedule {
+    margin-bottom: 20px;
+    padding: 25px;
+}
+
+.player-schedule h2 {
+    font-size: 26px;
+}
+
+.player-fixture {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    padding: 16px 0;
+    border-top: 1px solid var(--fte-paper-line);
+}
+
+.player-fixture time {
+    background: var(--fte-red);
+    color: var(--fte-paper);
+    border-radius: var(--fte-radius-control);
+    padding: 10px 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.player-fixture.pending time {
+    background: var(--fte-panel);
+}
+
+.player-fixture h3 {
+    font-size: 20px;
+    margin-bottom: 4px;
+}
+
+.schedule-empty {
+    padding-top: 16px;
+    border-top: 1px solid var(--fte-paper-line);
+}

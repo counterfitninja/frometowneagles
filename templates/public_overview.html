@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>All Matches - Under-12 Football</title>
+    <title>{% block page_title %}All Matches{% endblock %} - {{ team_title }}</title>
     <style>
         * {
             margin: 0;
@@ -212,18 +212,22 @@
         }
     </style>
     <link rel="stylesheet" href="/static/design-language.css?v=20260818-rounded">
+    <link rel="stylesheet" href="{{ url_for('static', filename='public-players.css') }}">
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>All Matches Overview</h1>
+            <h1>{% block heading %}All Matches Overview{% endblock %}</h1>
             <p>{{ team_title }}</p>
             <div class="nav-buttons">
                 <a href="/public/next-match" class="nav-btn">Next Match</a>
+                {% block extra_navigation %}{% endblock %}
                 <a href="/login" class="nav-btn login">Manager Login</a>
             </div>
         </div>
 
+        {% block content %}
+        {% include 'public_player_picker.html' %}
         {% if matches %}
         <div class="overview-grid">
             {% for match in matches %}
@@ -241,9 +245,9 @@
                     </div>
                     <div class="players-grid">
                         {% for player in match.playing %}
-                        <div class="player-chip">
+                        <a class="player-chip" href="{{ url_for('public_player', player_id=player.id) }}">
                             {{ player.name }}{% if player.position == 'GK' %} 🧤{% endif %}
-                        </div>
+                        </a>
                         {% endfor %}
                     </div>
                 </div>
@@ -257,14 +261,13 @@
                     </div>
                     <div class="players-grid">
                         {% for player in match.not_playing %}
-                        <div class="player-chip not-playing">
+                        <a class="player-chip not-playing" href="{{ url_for('public_player', player_id=player.id) }}">
                             {{ player.name }}{% if player.position == 'GK' %} 🧤{% endif %}
-                        </div>
+                        </a>
                         {% endfor %}
                     </div>
                 </div>
                 {% endif %}
-
                 {% if not match.playing and not match.not_playing %}
                 <p style="text-align: center; color: #756d66; font-style: italic;">No team selected for this match</p>
                 {% endif %}
@@ -277,6 +280,7 @@
             <p>Check back later for match schedules</p>
         </div>
         {% endif %}
+        {% endblock %}
 
         <div class="footer">
             {% if version %}
