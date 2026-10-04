@@ -1,0 +1,216 @@
+.live-screen {
+    height: auto;
+    min-height: 100dvh;
+    overflow: auto;
+    padding: 0 !important;
+    background: var(--fte-dugout);
+}
+
+.live-screen .top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--fte-paper);
+    color: var(--fte-dugout);
+    border-bottom: 1px solid var(--fte-paper-line);
+}
+
+.live-screen .match-title small {
+    color: var(--fte-muted);
+}
+
+.live-more {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.live-more summary {
+    cursor: pointer;
+    padding: 10px 12px;
+    font-weight: 700;
+    border-radius: var(--fte-radius-control);
+    background: var(--fte-panel);
+    color: var(--fte-paper);
+}
+
+.live-more-actions {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 8px);
+    width: min(280px, calc(100vw - 24px));
+    max-height: 70dvh;
+    overflow-y: auto;
+    padding: 8px;
+    background: var(--fte-paper);
+    border: 1px solid var(--fte-paper-line);
+    border-radius: var(--fte-radius-panel);
+    box-shadow: var(--fte-shadow-card);
+}
+
+.live-more-actions button,
+.live-more-actions a {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    text-align: left;
+    font: 600 14px "Aptos", "Segoe UI", sans-serif;
+    text-decoration: none;
+    color: var(--fte-dugout);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+}
+
+.live-more-actions button:hover,
+.live-more-actions a:hover {
+    background: var(--fte-paper-line);
+}
+
+.live-more-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.live-more-actions .danger-action {
+    color: var(--fte-red-deep);
+}
+
+.live-scoreboard {
+    width: min(700px, 100%);
+    margin: 0 auto;
+    padding: 16px 12px 8px;
+}
+
+.live-score {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.live-score span:first-child { text-align: right; }
+.live-score span:last-child { overflow-wrap: anywhere; }
+.live-score strong {
+    font: 800 44px/1 "Bahnschrift", "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums;
+    color: var(--fte-gold);
+}
+.score-divider { color: var(--fte-paper-line); }
+
+.score-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.score-actions button,
+.result-player-grid button,
+.result-cancel {
+    min-height: 48px;
+    padding: 12px;
+    border: 1px solid var(--fte-slate);
+    background: var(--fte-panel);
+    color: var(--fte-paper);
+    font: 700 15px "Aptos", "Segoe UI", sans-serif;
+    cursor: pointer;
+}
+
+.score-actions .record-goal {
+    background: var(--fte-gold);
+    border-color: var(--fte-gold);
+    color: var(--fte-dugout);
+    font-size: 20px;
+}
+
+.result-status {
+    margin-top: 8px;
+    min-height: 18px;
+    font-size: 12px;
+    color: var(--fte-paper-line);
+    text-align: center;
+}
+.result-status.error { color: #ffb7bd; }
+.retry-result {
+    display: block;
+    margin: 4px auto;
+    padding: 8px 12px;
+    color: var(--fte-paper);
+    background: var(--fte-red-deep);
+    border: 0;
+    cursor: pointer;
+}
+.retry-result[hidden] { display: none; }
+
+.live-screen .pitch-wrapper {
+    flex: none;
+    overflow: visible;
+    padding: 12px;
+}
+.live-screen .bottom-section {
+    width: min(700px, 100%);
+    margin: 0 auto;
+    border-radius: var(--fte-radius-panel);
+    background: var(--fte-panel);
+}
+.live-screen .formation-tabs {
+    width: min(700px, 100%);
+    margin: 0 auto;
+    background: var(--fte-panel);
+}
+.live-screen .formation-tab.active { border-bottom-color: var(--fte-gold); }
+.live-screen .sub-btn { background: var(--fte-slate); }
+
+.goal-history {
+    width: min(700px, 100%);
+    margin: 12px auto 24px;
+    padding: 0 12px;
+}
+.goal-history summary {
+    padding: 12px 0;
+    color: var(--fte-paper-line);
+    font-size: 14px;
+    cursor: pointer;
+}
+.goal-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-top: 1px solid var(--fte-slate-2);
+}
+.goal-entry p { flex: 1; font-size: 14px; }
+.goal-entry strong { display: block; color: var(--fte-gold); }
+.goal-entry span { font-size: 12px; color: var(--fte-paper-line); }
+.goal-entry button {
+    padding: 10px;
+    border: 1px solid var(--fte-slate);
+    background: transparent;
+    color: var(--fte-paper);
+    cursor: pointer;
+}
+.empty-goals { font-size: 13px; padding: 12px 0; color: var(--fte-paper-line); }
+
+.result-picker {
+    position: fixed;
+    inset: auto 0 16px;
+    margin: auto;
+    width: min(460px, calc(100% - 24px));
+    max-height: 85dvh;
+    overflow-y: auto;
+    padding: 18px;
+    border: 1px solid var(--fte-slate);
+    border-radius: var(--fte-radius-panel);
+    background: var(--fte-panel);
+    color: var(--fte-paper);
+}
+.result-picker::backdrop { background: rgba(17, 18, 23, 0.85); }
+.result-picker h3 { margin-bottom: 16px; font: 700 22px Georgia, serif; }
+.result-player-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.result-player-grid .wide { grid-column: 1 / -1; }
+.result-cancel { margin-top: 12px; width: 100%; background: transparent; }
+.live-empty-team { padding: 24px 12px; text-align: center; }
+.live-empty-team p { margin-bottom: 16px; color: var(--fte-paper-line); }
+.live-empty-team a { display: inline-block; text-decoration: none; background: var(--fte-slate); }

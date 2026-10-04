@@ -64,6 +64,39 @@
         display: flex;
         gap: 10px;
         align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .schedule-actions {
+        position: relative;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .schedule-actions > .action-menu {
+        position: static;
+    }
+
+    .schedule-actions .btn {
+        width: auto;
+    }
+
+    .match-actions > .btn, .match-actions summary {
+        padding: 10px 12px;
+        white-space: nowrap;
+    }
+
+    .bulk-upload-section > summary {
+        padding: 4px 0;
+        font-weight: 700;
+        cursor: pointer;
+        color: var(--ink);
+    }
+
+    .bulk-upload-section[open] > summary {
+        margin-bottom: 16px;
     }
 
     .status-badge {
@@ -122,6 +155,12 @@
     }
 
     @media (max-width: 768px) {
+        .schedule-actions .menu-actions {
+            left: 0;
+            right: auto;
+            width: min(240px, calc(100vw - 72px));
+        }
+
         .match-card {
             flex-direction: column;
             align-items: flex-start;
@@ -130,11 +169,13 @@
         .match-actions {
             margin-top: 15px;
             width: 100%;
-            flex-direction: column;
+            justify-content: flex-start;
+            gap: 8px;
         }
 
-        .match-actions button {
-            width: 100%;
+        .match-actions > .btn, .match-actions > .action-menu {
+            width: auto;
+            flex: 1;
         }
     }
 </style>
@@ -149,16 +190,19 @@
                 {% if show_past %}Showing all matches{% else %}Showing upcoming matches{% endif %}
             </p>
         </div>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <button onclick="showAddMatchForm()" class="btn" style="background: #d4af37; color: #1e1f28;">➕ Add Match</button>
+        <div class="schedule-actions">
+            <button onclick="showAddMatchForm()" class="btn btn-success">Add match</button>
+            <details class="action-menu">
+                <summary class="btn">More</summary>
+                <div class="menu-actions">
             {% if show_past %}
-            <a href="/matches" class="btn" style="background: #756d66; color: white; text-decoration: none;">📅 Upcoming Only</a>
+            <a href="/matches">Upcoming matches</a>
             {% else %}
-            <a href="/matches?show_past=true" class="btn" style="background: #756d66; color: white; text-decoration: none;">📜 Show All Matches</a>
+            <a href="/matches?show_past=true">Include past matches</a>
             {% endif %}
-            <a href="/matches/overview" class="btn" style="background: #1e1f28; color: white; text-decoration: none; padding: 12px 20px; font-size: 16px; font-weight: 600; border-radius: 0; ">
-                📋 View All Teams
-            </a>
+                    <a href="/matches/overview">View all teams</a>
+                </div>
+            </details>
         </div>
     </div>
 
@@ -238,39 +282,42 @@
             <div class="match-opponent">⚽ vs {{ match.opponent }}</div>
             <div class="match-location">📍 {{ match.location or 'TBD' }}</div>
             {% if match.formation_name %}
-            <div style="margin-top: 8px; font-size: 13px; color: #d4af37;">
+            <div style="margin-top: 8px; font-size: 13px; color: #756d66;">
                 ✅ Formation: <strong>{{ match.formation_name }}</strong>
             </div>
             {% endif %}
         </div>
         
         <div class="match-actions">
+            <a href="/matches/{{ match.id }}/live" class="btn btn-success">Live</a>
             {% if match.formation_id %}
-            <span class="status-badge ready">✅ Ready</span>
-            <a href="/formations/{{ match.formation_id }}/load" class="btn" style="background: #1e1f28;">📋 Edit Formation</a>
-            <a href="/formations/{{ match.formation_id }}/gameday" class="btn" style="background: #d4af37; color: #1e1f28;">👁 View Formation</a>
-            <a href="/formations/{{ match.formation_id }}/live" class="btn" style="background: #c41e3a;">🔴 Live</a>
-            <a href="/formations/{{ match.formation_id }}/matchday" class="btn" style="background: #2ecc71; color: #1e1f28;">⚽ Match Day</a>
-            <button onclick="shareMatchTeam(this, {{ match.id }})" class="btn" style="background: #25D366;" title="Share team on WhatsApp">📱 WhatsApp</button>
+            <a href="/formations/{{ match.formation_id }}/load" class="btn">Plan team</a>
             {% else %}
-            <span class="status-badge pending">⚠️ No Formation</span>
-            <a href="/pitch?match_id={{ match.id }}&match_name={{ match.match_date }} - vs {{ match.opponent }}" class="btn" style="background: #1e1f28;">📋 Create Formation</a>
-            <a href="/matches/{{ match.id }}/result" class="btn" style="background: #2ecc71; color: #1e1f28;">⚽ Record Result</a>
+            <a href="{{ url_for('pitch', match_id=match.id, match_name=match.match_date ~ ' - vs ' ~ match.opponent) }}" class="btn">Plan team</a>
             {% endif %}
-            <button onclick="editMatch({{ match.id }}, '{{ match.match_date }}', '{{ match.opponent }}', '{{ match.location or '' }}')" class="btn" style="background: #d4af37; color: #1e1f28; padding: 8px 12px;">✏️</button>
-            <button onclick="deleteMatch({{ match.id }})" class="btn btn-danger" style="padding: 8px 12px;">🗑️</button>
+            <details class="action-menu">
+                <summary class="btn" aria-label="More actions for {{ match.opponent }}">More</summary>
+                <div class="menu-actions">
+                    {% if match.formation_id %}
+                    <a href="/formations/{{ match.formation_id }}/gameday">View team sheet</a>
+                    <button onclick="shareMatchTeam(this, {{ match.id }})">Share team</button>
+                    {% endif %}
+                    <button onclick="editMatch({{ match.id }}, {{ match.match_date | tojson | forceescape }}, {{ match.opponent | tojson | forceescape }}, {{ (match.location or '') | tojson | forceescape }})">Edit fixture</button>
+                    <button onclick="deleteMatch({{ match.id }})" class="danger-action">Delete fixture</button>
+                </div>
+            </details>
         </div>
     </div>
     {% endfor %}
     {% else %}
     <div style="text-align: center; padding: 40px; color: #756d66;">
         <p style="font-size: 16px;">No matches scheduled yet.</p>
-        <p style="font-size: 14px; margin-top: 10px;">Use the bulk upload form below to add your matches.</p>
+        <p style="font-size: 14px; margin-top: 10px;">Choose Add match, or expand Import fixtures below.</p>
     </div>
     {% endif %}
 
-    <div class="bulk-upload-section" style="margin-top: 40px;">
-        <h3 style="color: #1e1f28; margin-bottom: 15px;">📄 Bulk Upload Matches</h3>
+    <details class="bulk-upload-section" style="margin-top: 24px;">
+        <summary>Import fixtures</summary>
         <p style="color: #756d66; font-size: 14px; margin-bottom: 10px;">
             Enter matches one per line in the format: <code>YYYY-MM-DD | Opponent | Location</code>
         </p>
@@ -287,7 +334,7 @@
         <button onclick="uploadMatches()" class="btn btn-success" style="margin-top: 15px;">
             📤 Upload Matches
         </button>
-    </div>
+    </details>
 </div>
 
 {% endblock %}

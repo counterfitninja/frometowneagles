@@ -10,6 +10,47 @@ This is a Flask-based football team management application designed to run on Pt
 - Click a player name on either public page to see upcoming non-playing dates without logging in (unselected teams are shown separately)
 - Offline PWA support
 - Team generator with balanced selection and fixture-specific player availability
+- One live match screen for the score, scorers, assists, substitutions and man of the match
+
+## Match controls
+
+Open **Matches > Live** for a specific fixture, or **Live** in the main navigation
+for the next upcoming match. Tap **Goal!**, select the scorer, then the assister
+(or **No assist**). The pitch and substitution controls stay on the same screen.
+Matches without a selected team can still record results using active players.
+
+Expand **Goals and assists** to review or remove goals. **More** contains result
+sharing, man of the match, score corrections, whole-team switching and separate
+resets for results and substitutions. Results are saved on the device and uploaded
+when connected; the screen shows upload failures with a retry action. Existing
+Match Day and Record Result links open the consolidated screen.
+
+The main navigation keeps Home, Matches, Players and Live visible. Team generation,
+saved formations, the leaderboard, settings and logout are under **More**. Each
+fixture has Live and Plan team as its main actions; sharing and fixture edits are
+under its **More** menu.
+
+## Export player availability
+
+In **More > Generate teams**, select fixtures and tick the players who cannot
+attend. Choose the generator's **More > Export availability (CSV)** to download
+the current attendance selections without generating teams. The spreadsheet has
+one row per active player per selected fixture, including player and fixture IDs,
+date, opponent, location, position, and Available/Unavailable status. Unticked
+players are treated as available, matching the team generator.
+
+This exports the current form, not the saved playing/not-playing selections.
+Attendance ticks are not stored between visits; export before leaving the page.
+
+To restore them later, open the generator's **More** menu, choose the exported
+file under **Availability CSV to import**, then select **Import availability CSV**.
+The import replaces the selected fixtures and availability ticks with those in
+the file; it does not generate teams or write attendance to the database.
+You may edit the **Availability** column to `Available` or `Unavailable` before
+importing. Keep the fixture/player IDs and every active player's row for each
+fixture. UTF-8 CSV files up to 2 MB are supported. Invalid files, duplicate rows,
+missing players and fixtures already assigned a formation are rejected without
+applying any of the imported selections.
 
 ## Requirements
 - Python 3.8+
