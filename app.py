@@ -14,6 +14,8 @@ def add_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-XSS-Protection'] = '1; mode=block'
+    if request.path == '/static/sw.js':
+        response.headers['Service-Worker-Allowed'] = '/'
     return response
 
 # Prevent direct database file access
@@ -568,45 +570,6 @@ def live_view(formation_id):
     import json as _json
     with get_db() as conn:
         row = conn.execute('''
-            SELECT f.*, m.opponent, m.match_date, m.location
-            FROM formations f
-            LEFT JOIN matches m ON m.formation_id = f.id
-            WHERE f.id = ?
-        ''', (formation_id,)).fetchone()
-
-    if not row:
-        return redirect(url_for('formations'))
-
-    try:
-        data = _json.loads(row['data'])
-        formations_data = data.get('formations', [])
-
-        match_date_display = ''
-        if row['match_date']:
-            try:
-                d = datetime.strptime(row['match_date'], '%Y-%m-%d')
-                match_date_display = d.strftime('%a %d %b %Y')
-            except Exception:
-                match_date_display = row['match_date']
-
-        return render_template('live.html',
-                               formation_id=formation_id,
-                               formation_name=row['name'],
-                               formations_json=_json.dumps(formations_data),
-                               opponent=row['opponent'] or 'Unknown',
-                               match_date_display=match_date_display,
-                               location=row['location'] or '',
-                               version=VERSION)
-    except Exception as e:
-        print(f"Error loading live view {formation_id}: {str(e)}")
-        return f"Error loading live view: {str(e)}", 500
-
-@app.route('/formations/<int:formation_id>/matchday')
-@login_required
-def matchday_view(formation_id):
-    import json as _json
-    with get_db() as conn:
-        row = conn.execute('''
             SELECT f.*, m.id as match_id, m.opponent, m.match_date, m.location,
                    mr.goals_json, mr.opponent_goals, mr.motm_player_id
             FROM formations f
@@ -618,58 +581,85 @@ def matchday_view(formation_id):
     if not row:
         return redirect(url_for('formations'))
 
-    try:
-        data = _json.loads(row['data'])
-    except Exception as e:
-        print(f"Error loading match day {formation_id}: {str(e)}")
-        return f"Error loading match day: {str(e)}", 500
+    formations = _json.loads(row['data']).get('formations', [])
+    return render_live_match(row, formation_id, row['name'], formations)
 
-    # Flatten every formation's players + subs into one squad list (unique by id)
-    squad = []
-    seen = set()
-    for formation in data.get('formations', []):
-        for player in list(formation.get('players', [])) + list(formation.get('subs', [])):
-            pid = str(player.get('id'))
-            if pid in seen:
-                continue
-            seen.add(pid)
-            squad.append({
-                'id': pid,
-                'name': player.get('name', 'Unknown'),
-                'position': player.get('position', '')
-            })
-    squad.sort(key=lambda p: p['name'])
+@app.route('/formations/<int:formation_id>/matchday')
+@login_required
+def matchday_view(formation_id):
+    return redirect(url_for('live_view', formation_id=formation_id))
 
-    match_date_display = ''
-    if row['match_date']:
+
+def render_live_match(row, formation_id=None, formation_name=None, formations=None):
+    import json
+    formations = formations or []
+    saved_goals = json.loads(row['goals_json'] or '[]')
+    referenced_ids = {
+        str(goal[key])
+        for goal in saved_goals
+        for key in ('scorer_id', 'assist_id')
+        if goal.get(key)
+    }
+    if row['motm_player_id']:
+        referenced_ids.add(str(row['motm_player_id']))
+
+    squad_ids = {
+        str(player['id'])
+        for formation in formations
+        for player in formation.get('players', []) + formation.get('subs', []) + formation.get('squad', [])
+        if player.get('id') is not None
+    }
+    with get_db() as conn:
+        all_players = conn.execute('SELECT id, name, position, status FROM players ORDER BY name').fetchall()
+    squad = [
+        dict(player)
+        for player in all_players
+        if str(player['id']) in referenced_ids
+        or (str(player['id']) in squad_ids if formations else player['status'] == 'active')
+    ]
+
+    match_date_display = row['match_date'] or ''
+    if match_date_display:
         try:
-            match_date_display = datetime.strptime(row['match_date'], '%Y-%m-%d').strftime('%a %d %b %Y')
-        except Exception:
-            match_date_display = row['match_date']
+            match_date_display = datetime.strptime(match_date_display, '%Y-%m-%d').strftime('%a %d %b %Y')
+        except ValueError:
+            pass
 
-    return render_template('matchday.html',
-                           match_id=row['match_id'],
-                           formation_id=formation_id,
-                           formation_name=row['name'],
-                           squad_json=_json.dumps(squad),
-                           saved_state_json=_json.dumps({
-                               'goals': _json.loads(row['goals_json'] or '[]'),
-                               'opponentGoals': row['opponent_goals'] or 0,
-                               'motmPlayerId': str(row['motm_player_id']) if row['motm_player_id'] else None
-                           }),
-                           opponent=row['opponent'] or 'Opponent',
-                           match_date_display=match_date_display,
-                           location=row['location'] or '',
-                           version=VERSION)
+    match_id = row['match_id']
+    legacy_keys = ['matchDay_' + str(formation_id)] if formation_id else []
+    if match_id:
+        legacy_keys.append('matchDay_match-' + str(match_id))
+    return render_template(
+        'live.html',
+        formation_id=formation_id,
+        formation_name=formation_name or 'vs ' + row['opponent'],
+        formations=formations,
+        opponent=row['opponent'] or 'Opponent',
+        match_date_display=match_date_display,
+        location=row['location'] or '',
+        result_config={
+            'matchId': match_id,
+            'opponent': row['opponent'] or 'Opponent',
+            'squad': squad,
+            'storageKey': 'matchResult_' + (str(match_id) if match_id else 'formation-' + str(formation_id)),
+            'legacyKeys': legacy_keys,
+            'savedState': {
+                'goals': saved_goals,
+                'opponentGoals': row['opponent_goals'] or 0,
+                'motmPlayerId': str(row['motm_player_id']) if row['motm_player_id'] else None
+            }
+        },
+        version=VERSION
+    )
 
 @app.route('/matches/<int:match_id>/result')
+@app.route('/matches/<int:match_id>/live')
 @login_required
 def match_result_view(match_id):
-    """Record goals/assists/MOTM for a match that has no formation attached."""
-    import json as _json
+    """Open the same live screen for fixtures with or without a team."""
     with get_db() as conn:
         row = conn.execute('''
-            SELECT m.*, mr.goals_json, mr.opponent_goals, mr.motm_player_id
+            SELECT m.*, m.id as match_id, mr.goals_json, mr.opponent_goals, mr.motm_player_id
             FROM matches m
             LEFT JOIN match_results mr ON mr.match_id = m.id
             WHERE m.id = ?
@@ -678,66 +668,13 @@ def match_result_view(match_id):
         if not row:
             return redirect(url_for('matches'))
 
-        # Keep retired players already recorded in this result available for edits,
-        # while excluding them from a new result's player picker.
-        referenced_player_ids = set()
-        try:
-            saved_goals = _json.loads(row['goals_json'] or '[]')
-        except _json.JSONDecodeError:
-            saved_goals = []
-        for goal in saved_goals:
-            if isinstance(goal, dict):
-                for key in ('scorer_id', 'assist_id'):
-                    if goal.get(key):
-                        referenced_player_ids.add(str(goal[key]))
-        if row['motm_player_id']:
-            referenced_player_ids.add(str(row['motm_player_id']))
-
-        if referenced_player_ids:
-            placeholders = ', '.join('?' for _ in referenced_player_ids)
-            players_list = conn.execute(f'''
-                SELECT id, name, position, status FROM players
-                WHERE status = 'active' OR id IN ({placeholders})
-                ORDER BY name
-            ''', tuple(referenced_player_ids)).fetchall()
-        else:
-            players_list = conn.execute('''
-                SELECT id, name, position, status FROM players
-                WHERE status = 'active'
-                ORDER BY name
-            ''').fetchall()
-
-    squad = [
-        {
-            'id': str(p['id']),
-            'name': p['name'],
-            'position': p['position'] or '',
-            'status': p['status']
-        }
-        for p in players_list
-    ]
-
-    match_date_display = ''
-    if row['match_date']:
-        try:
-            match_date_display = datetime.strptime(row['match_date'], '%Y-%m-%d').strftime('%a %d %b %Y')
-        except Exception:
-            match_date_display = row['match_date']
-
-    return render_template('matchday.html',
-                           match_id=row['id'],
-                           formation_id='match-' + str(row['id']),
-                           formation_name='vs ' + (row['opponent'] or 'Opponent'),
-                           squad_json=_json.dumps(squad),
-                           saved_state_json=_json.dumps({
-                               'goals': _json.loads(row['goals_json'] or '[]'),
-                               'opponentGoals': row['opponent_goals'] or 0,
-                               'motmPlayerId': str(row['motm_player_id']) if row['motm_player_id'] else None
-                           }),
-                           opponent=row['opponent'] or 'Opponent',
-                           match_date_display=match_date_display,
-                           location=row['location'] or '',
-                           version=VERSION)
+        formation = conn.execute('SELECT * FROM formations WHERE id = ?', (row['formation_id'],)).fetchone()
+    if formation:
+        import json
+        return render_live_match(
+            row, formation['id'], formation['name'], json.loads(formation['data']).get('formations', [])
+        )
+    return render_live_match(row)
 
 @app.route('/api/matches/<int:match_id>/result', methods=['GET', 'POST'])
 @login_required
@@ -1138,17 +1075,17 @@ def gameday():
 @app.route('/live')
 @login_required
 def live_shortcut():
-    """Redirect to the next upcoming match's live view (must have a formation)"""
+    """Open the next fixture, even when its team has not been selected."""
     today = datetime.now().strftime('%Y-%m-%d')
     with get_db() as conn:
         next_match = conn.execute('''
             SELECT * FROM matches
-            WHERE match_date >= ? AND formation_id IS NOT NULL
+            WHERE match_date >= ?
             ORDER BY match_date ASC
             LIMIT 1
         ''', (today,)).fetchone()
     if next_match:
-        return redirect(url_for('live_view', formation_id=dict(next_match)['formation_id']))
+        return redirect(url_for('match_result_view', match_id=next_match['id']))
     return redirect(url_for('matches'))
 
 @app.route('/matches/add', methods=['POST'])
@@ -1316,6 +1253,162 @@ def settings():
     
     team_title = get_setting('team_title', 'Under-12 Football Manager')
     return render_template('settings.html', team_title=team_title, version=VERSION, success=success, error=error)
+
+def availability_export_context():
+    with get_db() as conn:
+        players = [dict(player) for player in conn.execute(
+            "SELECT id, name, position FROM players WHERE status = 'active' ORDER BY name, id"
+        ).fetchall()]
+        matches = [dict(match) for match in conn.execute('''
+            SELECT id, match_date, opponent, location FROM matches
+            WHERE formation_id IS NULL ORDER BY match_date, id
+        ''').fetchall()]
+    return players, matches
+
+
+@app.route('/team-generator/import-availability', methods=['POST'])
+@login_required
+def import_player_availability():
+    import csv
+    from io import StringIO
+
+    players, matches = availability_export_context()
+    active_ids = {str(player['id']) for player in players}
+    available_ids = {str(match['id']) for match in matches}
+    selected_ids = set(request.form.getlist('match_ids'))
+    current_unavailable = {
+        str(match['id']): request.form.getlist(f"unavailable_for_{match['id']}")
+        for match in matches
+    }
+
+    def import_error(message):
+        return render_template(
+            'team_generator.html', error=message, players=players, matches=matches,
+            selected_match_ids=[match['id'] for match in matches if str(match['id']) in selected_ids],
+            unavailable_by_match=current_unavailable,
+            invite_all_match_ids=request.form.getlist('invite_all_for'),
+            team_size=request.form.get('team_size', 12), num_games=len(selected_ids),
+            version=VERSION
+        ), 400
+
+    upload = request.files.get('availability_file')
+    if not upload or not upload.filename:
+        return import_error('Choose an exported availability CSV to import.')
+    try:
+        contents = upload.stream.read(2 * 1024 * 1024 + 1)
+    finally:
+        upload.close()
+    if len(contents) > 2 * 1024 * 1024:
+        return import_error('The availability CSV must be 2 MB or smaller.')
+    imported = {}
+    try:
+        reader = csv.DictReader(StringIO(contents.decode('utf-8-sig'), newline=''), strict=True)
+        required = {'Fixture ID', 'Player ID', 'Availability'}
+        if not reader.fieldnames or not required.issubset(reader.fieldnames):
+            return import_error('Use an exported availability CSV with Fixture ID, Player ID and Availability columns.')
+        if len(reader.fieldnames) != len(set(reader.fieldnames)):
+            return import_error('The CSV contains duplicate column headings.')
+        for row in reader:
+            if None in row or any(value is None for value in row.values()):
+                return import_error(f'CSV line {reader.line_num} has missing or extra columns.')
+            fixture_id = row['Fixture ID'].strip()
+            player_id = row['Player ID'].strip()
+            status = row['Availability'].strip().lower()
+            if fixture_id not in available_ids:
+                return import_error(f'CSV line {reader.line_num}: fixture {fixture_id} is no longer available for planning.')
+            if player_id not in active_ids:
+                return import_error(f'CSV line {reader.line_num}: player {player_id} is missing or no longer active.')
+            if status not in ('available', 'unavailable'):
+                return import_error(f'CSV line {reader.line_num}: Availability must be Available or Unavailable.')
+            fixture = imported.setdefault(fixture_id, {})
+            if player_id in fixture:
+                return import_error(f'CSV line {reader.line_num}: duplicate player {player_id} for fixture {fixture_id}.')
+            fixture[player_id] = status
+    except (UnicodeDecodeError, csv.Error):
+        return import_error('The file is not a valid UTF-8 CSV. Save it as CSV UTF-8 and try again.')
+    if not imported:
+        return import_error('The CSV contains no player availability rows.')
+    if any(set(fixture) != active_ids for fixture in imported.values()):
+        return import_error('Each imported fixture must include every active player. Export a fresh CSV if the squad has changed.')
+
+    return render_template(
+        'team_generator.html', players=players, matches=matches,
+        selected_match_ids=[match['id'] for match in matches if str(match['id']) in imported],
+        unavailable_by_match={
+            fixture_id: [player_id for player_id, status in fixture.items() if status == 'unavailable']
+            for fixture_id, fixture in imported.items()
+        },
+        invite_all_match_ids=request.form.getlist('invite_all_for'),
+        team_size=request.form.get('team_size', 12), num_games=len(imported),
+        success=f'Imported availability for {len(imported)} fixture(s). Review the ticks before generating teams.',
+        version=VERSION
+    )
+
+
+@app.route('/team-generator/export-availability', methods=['POST'])
+@login_required
+def export_player_availability():
+    import csv
+    from io import StringIO
+
+    players, matches = availability_export_context()
+
+    submitted_ids = set(request.form.getlist('match_ids'))
+    available_ids = {str(match['id']) for match in matches}
+    active_ids = {str(player['id']) for player in players}
+    selected_matches = [match for match in matches if str(match['id']) in submitted_ids]
+    unavailable_by_match = {
+        str(match['id']): request.form.getlist(f"unavailable_for_{match['id']}")
+        for match in selected_matches
+    }
+    error = None
+    if not submitted_ids:
+        error = 'Select at least one fixture to export availability.'
+    elif submitted_ids - available_ids:
+        error = 'One or more selected fixtures are no longer available. Refresh the page and try again.'
+    elif not players:
+        error = 'Add active players before exporting availability.'
+    elif any(set(ids) - active_ids for ids in unavailable_by_match.values()):
+        error = 'One or more players are no longer active. Refresh the page and review availability.'
+    if error:
+        return render_template(
+            'team_generator.html', error=error, players=players, matches=matches,
+            selected_match_ids=[match['id'] for match in selected_matches],
+            unavailable_by_match=unavailable_by_match,
+            invite_all_match_ids=request.form.getlist('invite_all_for'),
+            team_size=request.form.get('team_size', 12),
+            num_games=len(selected_matches), version=VERSION
+        ), 400
+
+    def spreadsheet_text(value):
+        text = str(value or '')
+        # CSV quoting does not prevent spreadsheet formula execution.
+        if text.lstrip().startswith(('=', '+', '-', '@')) or text.startswith(('\t', '\r', '\n')):
+            return "'" + text
+        return text
+
+    output = StringIO(newline='')
+    writer = csv.writer(output)
+    writer.writerow(['Fixture ID', 'Date', 'Opponent', 'Location',
+                     'Player ID', 'Player', 'Position', 'Availability'])
+    for match in selected_matches:
+        unavailable_ids = set(unavailable_by_match[str(match['id'])])
+        for player in players:
+            writer.writerow([
+                match['id'], datetime.strptime(match['match_date'], '%Y-%m-%d').strftime('%d/%m/%Y'),
+                spreadsheet_text(match['opponent']), spreadsheet_text(match['location']),
+                player['id'], spreadsheet_text(player['name']), spreadsheet_text(player['position']),
+                'Unavailable' if str(player['id']) in unavailable_ids else 'Available'
+            ])
+
+    response = app.response_class(
+        '\ufeff' + output.getvalue(), mimetype='text/csv'
+    )
+    response.headers['Content-Disposition'] = (
+        'attachment; filename="player-availability-' + datetime.now().strftime('%Y-%m-%d') + '.csv"'
+    )
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 @app.route('/settings/change-password', methods=['POST'])
 @login_required

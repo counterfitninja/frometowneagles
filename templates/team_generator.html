@@ -133,6 +133,11 @@
         white-space: nowrap;
     }
 
+    .generator-options .menu-actions button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
     .section-heading-row {
         display: flex;
         align-items: center;
@@ -499,10 +504,14 @@
     </div>
     {% endif %}
 
+    {% if success %}
+    <p role="status" style="margin-bottom: 18px;">{{ success }}</p>
+    {% endif %}
+
     <div class="generator-section">
         <h3 style="color: #1e1f28; margin-bottom: 8px;">Generate Teams</h3>
         <p style="color: #756d66; margin-bottom: 18px;">Choose the fixtures you want to plan. Each selected game gets its own balanced team.</p>
-        <form method="POST" action="/team-generator/generate" class="generate-form">
+        <form method="POST" action="/team-generator/generate" class="generate-form" enctype="multipart/form-data">
             <div class="form-group game-selection-group">
                 <div class="section-heading-row">
                     <label for="gamePicker">Games to include</label>
@@ -620,6 +629,23 @@
                     <input type="number" id="team_size" name="team_size" min="9" max="15" value="{{ team_size|default(12) }}" required>
                 </div>
                 <button type="submit" id="generateButton" class="btn btn-success" style="flex: 0;">🎲 Generate Teams</button>
+                {% if matches %}
+                <details class="action-menu">
+                    <summary class="btn">More</summary>
+                    <div class="menu-actions">
+                        <button type="submit" id="exportAvailabilityButton"
+                                formaction="{{ url_for('export_player_availability') }}" formnovalidate>
+                            Export availability (CSV)
+                        </button>
+                        <label for="availabilityFile" style="padding: 12px 12px 0;">Availability CSV to import</label>
+                        <input type="file" id="availabilityFile" name="availability_file"
+                               accept=".csv,text/csv" style="margin-bottom: 8px;">
+                        <button type="submit" formaction="{{ url_for('import_player_availability') }}" formnovalidate>
+                            Import availability CSV
+                        </button>
+                    </div>
+                </details>
+                {% endif %}
             </div>
         </form>
         <p style="font-size: 12px; color: #756d66; margin-top: 10px;">
@@ -810,12 +836,14 @@ function syncGameSelection() {
     const selectedCount = gameCheckboxes.filter(checkbox => checkbox.checked).length;
     const selectionCount = document.getElementById('selectionCount');
     const generateButton = document.getElementById('generateButton');
+    const exportButton = document.getElementById('exportAvailabilityButton');
     const gamesInput = document.getElementById('num_games');
 
     if (gameCheckboxes.length > 0) {
         selectionCount.textContent = `${selectedCount} game${selectedCount === 1 ? '' : 's'} selected`;
         gamesInput.value = selectedCount;
         generateButton.disabled = selectedCount === 0;
+        if (exportButton) exportButton.disabled = selectedCount === 0;
     } else {
         const manualGamesInput = document.getElementById('manual_num_games');
         if (manualGamesInput) {

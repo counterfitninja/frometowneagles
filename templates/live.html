@@ -6,6 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1a2035">
+    <link rel="manifest" href="/static/manifest.json">
     <title>🔴 Live: {{ formation_name }}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -567,8 +568,9 @@
         }
     </style>
     <link rel="stylesheet" href="/static/design-language.css?v=20260818-rounded">
+    <link rel="stylesheet" href="/static/live-match.css?v=20261004">
 </head>
-<body>
+<body class="live-screen">
 
 <!-- TOP BAR -->
 <div class="top-bar">
@@ -577,9 +579,41 @@
         ⚽ vs {{ opponent }}
         <small>{{ match_date_display }}{% if location %} · {{ location }}{% endif %}</small>
     </div>
-    <button class="lock-btn" id="lockBtn" onclick="toggleLock()" title="Lock / Emergency edits">🔒</button>
+    <details class="live-more" id="liveMore">
+        <summary>More</summary>
+        <div class="live-more-actions">
+            <button type="button" id="motmButton" onclick="matchResult.chooseMotm()">Choose man of the match</button>
+            <button type="button" onclick="matchResult.share()">Share result</button>
+            <button type="button" onclick="matchResult.removeOpponentGoal()">Remove opponent goal</button>
+            {% if formations %}
+            <button type="button" id="switchBtn" onclick="openSwitchModal()">Switch whole team</button>
+            <button type="button" id="lockBtn" onclick="toggleLock()">Unlock pitch edits</button>
+            <a href="/formations/{{ formation_id }}/gameday">View team sheet</a>
+            <a href="/formations/{{ formation_id }}/load">Plan team</a>
+            <button type="button" onclick="openResetModal()">Reset substitutions</button>
+            {% endif %}
+            <button type="button" class="danger-action" onclick="matchResult.reset()">Clear result</button>
+        </div>
+    </details>
 </div>
 
+<section class="live-scoreboard" aria-label="Match score">
+    <div class="live-score">
+        <span>Eagles</span>
+        <strong id="usScore">0</strong>
+        <span class="score-divider" aria-hidden="true">:</span>
+        <strong id="themScore">0</strong>
+        <span>{{ opponent }}</span>
+    </div>
+    <div class="score-actions">
+        <button type="button" class="record-goal" id="goalButton" onclick="matchResult.chooseScorer()">⚽ Goal!</button>
+        <button type="button" id="opponentGoalButton" onclick="matchResult.addOpponentGoal()">Opponent goal</button>
+    </div>
+    <p id="resultStatus" class="result-status" role="status" aria-live="polite"></p>
+    <button type="button" class="retry-result" id="retryResult" onclick="matchResult.retry()" hidden>Retry saving</button>
+</section>
+
+{% if formations %}
 <!-- UNLOCK WARNING BANNER -->
 <div class="unlock-banner hidden" id="unlockBanner">
     ⚠️ Emergency mode active — drag to reposition · tap to sub
@@ -619,11 +653,31 @@
     </div>
     <div class="action-row">
         <button class="sub-btn" id="subBtn" onclick="openSubModal()">🔄 Sub Made</button>
-        <button class="switch-btn" id="switchBtn" onclick="openSwitchModal()" title="Replace entire team at once">⚡ Full Switch</button>
         <div class="sub-tally" id="subTally">0 subs</div>
     </div>
     <div class="sub-log" id="subLog"></div>
 </div>
+{% else %}
+<div class="live-empty-team">
+    <p>No team selected. You can still record goals and assists.</p>
+    {% if result_config.matchId %}
+    <a class="back-btn" href="{{ url_for('pitch', match_id=result_config.matchId, match_name=formation_name) }}">Plan team</a>
+    {% endif %}
+</div>
+{% endif %}
+
+<details class="goal-history">
+    <summary id="goalLogSummary">Goals and assists · 0</summary>
+    <div id="goalLog"></div>
+</details>
+
+<dialog class="result-picker" id="resultPicker" aria-labelledby="resultPickerTitle">
+    <h3 id="resultPickerTitle">Who scored?</h3>
+    <div class="result-player-grid" id="resultPickerGrid"></div>
+    <button type="button" class="result-cancel" onclick="matchResult.closePicker()">Cancel</button>
+</dialog>
+<script id="resultConfig" type="application/json">{{ result_config | tojson }}</script>
+<script src="/static/match-result.js?v=20261004" defer></script>
 
 <!-- SUB MODAL -->
 <div class="modal-overlay hidden" id="subModal">
@@ -657,9 +711,9 @@
 </div>
 
 <script>
-    const FORMATION_ID   = {{ formation_id }};
+    const FORMATION_ID   = {{ formation_id | tojson }};
     const FORMATION_NAME = {{ formation_name | tojson }};
-    const INITIAL_DATA   = {{ formations_json | safe }};
+    const INITIAL_DATA   = {{ formations | tojson }};
     const STATE_KEY      = 'liveMatch_' + FORMATION_ID;
 
     let state;
@@ -676,6 +730,7 @@
                 name: f.name,
                 players: (f.players || []).map(p => ({ ...p, subbedIn: false })),
                 subs: [...(f.subs || [])],
+                squad: [...(f.squad || [...(f.players || []), ...(f.subs || [])])],
                 subbedOff: []
             })),
             subLog: []
@@ -709,6 +764,7 @@
     // ── RENDER ──────────────────────────────────────────────
 
     function render() {
+        if (!INITIAL_DATA.length) return;
         renderPitch();
         renderBench();
         renderSubLog();
@@ -851,11 +907,11 @@
         const lockBtn = document.getElementById('lockBtn');
         const banner  = document.getElementById('unlockBanner');
         if (state.locked) {
-            lockBtn.textContent = '🔒';
+            lockBtn.textContent = 'Unlock pitch edits';
             lockBtn.classList.remove('unlocked');
             banner.classList.add('hidden');
         } else {
-            lockBtn.textContent = '🔓';
+            lockBtn.textContent = 'Lock pitch edits';
             lockBtn.classList.add('unlocked');
             banner.classList.remove('hidden');
         }
@@ -1101,7 +1157,9 @@
         const formationsForSave = state.formations.map(f => ({
             name: f.name,
             players: f.players.map(({ subbedIn, ...rest }) => rest),
-            subs: f.subs.map(({ subbedIn, ...rest }) => rest)
+            subs: f.subs.map(({ subbedIn, ...rest }) => rest),
+            squad: (f.squad || [...f.players, ...f.subs, ...f.subbedOff])
+                .map(({ subbedIn, ...rest }) => rest)
         }));
 
         try {
@@ -1157,7 +1215,7 @@
         if (hasSubs) {
             if (!confirm('Leave live view?\n\nYour substitution log will be remembered if you come back.')) return;
         }
-        history.back();
+        window.location.href = '/matches';
     }
 
     // ── INIT ─────────────────────────────────────────────────
@@ -1188,19 +1246,6 @@
 </div>
 
 <div class="save-toast" id="saveToast"></div>
-
-<!-- Long-press top bar title to reset (hidden UX) -->
-<script>
-    let pressTimer;
-    document.querySelector('.match-title').addEventListener('touchstart', () => {
-        pressTimer = setTimeout(() => openResetModal(), 1200);
-    });
-    document.querySelector('.match-title').addEventListener('touchend', () => clearTimeout(pressTimer));
-    document.querySelector('.match-title').addEventListener('mousedown', () => {
-        pressTimer = setTimeout(() => openResetModal(), 1200);
-    });
-    document.querySelector('.match-title').addEventListener('mouseup', () => clearTimeout(pressTimer));
-</script>
 
 </body>
 </html>
