@@ -518,7 +518,7 @@
         <p class="selection-help">Review availability and goalkeeper targets for all upcoming fixtures this season. Generating again replaces their saved teams with private drafts, including teams already published. Results, past fixtures and other seasons are kept.</p>
         {% else %}
         <h3 style="color: #1e1f28; margin-bottom: 8px;">Generate Teams</h3>
-        <p style="color: #756d66; margin-bottom: 18px;">Choose the fixtures you want to plan. Each selected game gets its own balanced team.</p>
+        <p style="color: #756d66; margin-bottom: 18px;">All fixtures needing teams are selected by default, with no scheduled-game limit. Each selected game gets its own balanced team. To replace existing teams for all upcoming games this season, use Generate again.</p>
         {% endif %}
         <form method="POST" action="{{ url_for('generate_teams') if not regenerate else '/team-generator/regenerate' }}" class="generate-form" enctype="multipart/form-data"
               {% if regenerate %}onsubmit="return confirm('Replace all upcoming teams in the current season with new private drafts? Past fixtures and other seasons will be kept.');"{% endif %}>
@@ -624,13 +624,12 @@
                 {% else %}
                 <div class="empty-game-picker">
                     {% if regenerate %}No upcoming fixtures in the current season. <a href="/matches">Review games in Match Schedule</a>.
-                    {% else %}No upcoming games without formations. <a href="/matches">Add or review games in Match Schedule</a>, or use a manual game count below.{% endif %}
+                    {% else %}No upcoming games without formations. <a href="/matches">Add or review games in Match Schedule</a>.{% endif %}
                     Saved player unavailability is kept on the <a href="{{ url_for('players') }}#saved-unavailability">Players page</a>, where you can <a href="{{ url_for('export_saved_unavailability') }}">export it (CSV)</a>.
                 </div>
                 {% endif %}
             </div>
 
-            <input type="hidden" id="num_games" name="num_games" value="{{ num_games|default(4) }}">
             <fieldset class="game-selection-group">
                 <legend>Goalkeeper game targets</legend>
                 <p class="selection-help">Set each keeper's percentage of games in goal, totalling 100%, or leave all blank for equal rotation. Other keepers can play outfield and share the same rest-game rotation as everyone else. Targets are rounded to whole games; availability must allow them. Required games in goal take priority if they exceed a player's fair share. "Invite all" fixtures include everyone available and are excluded from these targets.</p>
@@ -645,17 +644,11 @@
                 {% endfor %}
             </fieldset>
             <div class="generator-options">
-                {% if not matches and not regenerate %}
-                <div class="form-group">
-                    <label for="manual_num_games">Number of Games</label>
-                    <input type="number" id="manual_num_games" min="1" max="20" value="{{ num_games|default(4) }}" required>
-                </div>
-                {% endif %}
                 <div class="form-group">
                     <label for="team_size">Players per game (includes subs)</label>
                     <input type="number" id="team_size" name="team_size" min="9" max="15" value="{{ team_size|default(12) }}" required>
                 </div>
-                <button type="submit" id="generateButton" class="btn btn-success" style="flex: 0;" {% if regenerate and not matches %}disabled{% endif %}>{{ 'Generate again' if regenerate else '🎲 Generate Teams' }}</button>
+                <button type="submit" id="generateButton" class="btn btn-success" style="flex: 0;" {% if not matches %}disabled{% endif %}>{{ 'Generate again' if regenerate else '🎲 Generate Teams' }}</button>
                 {% if regenerate %}
                 <a href="{{ url_for('team_generator') }}" class="btn">Cancel</a>
                 {% endif %}
@@ -684,7 +677,7 @@
             </div>
         </form>
         <p style="font-size: 12px; color: #756d66; margin-top: 10px;">
-            ℹ️ Generated teams are private. Save a draft, then publish it from Match Schedule when ready. Unavailable players are excluded. All players share rest-game rotation, with games in goal counted as playing.
+            ℹ️ Generated teams are private. Save a draft, then publish it from Match Schedule when ready. Rest games are calculated automatically across all selected fixtures from squad size, players per game and availability. Unavailable players are excluded, not counted as resting. All players share rest-game rotation, with games in goal counted as playing.
         </p>
     </div>
 
@@ -879,23 +872,15 @@ function syncGameSelection() {
     const selectionCount = document.getElementById('selectionCount');
     const generateButton = document.getElementById('generateButton');
     const exportButton = document.getElementById('exportAvailabilityButton');
-    const gamesInput = document.getElementById('num_games');
 
     if (gameCheckboxes.length > 0) {
         selectionCount.textContent = `${selectedCount} game${selectedCount === 1 ? '' : 's'} selected`;
-        gamesInput.value = selectedCount;
         generateButton.disabled = selectedCount === 0;
         if (exportButton) exportButton.disabled = selectedCount === 0;
         const saveAvailabilityButton = document.getElementById('saveAvailabilityButton');
         if (saveAvailabilityButton) saveAvailabilityButton.disabled = selectedCount === 0;
     } else {
-        const manualGamesInput = document.getElementById('manual_num_games');
-        if (manualGamesInput) {
-            gamesInput.value = manualGamesInput.value;
-            manualGamesInput.addEventListener('input', () => {
-                gamesInput.value = manualGamesInput.value;
-            });
-        }
+        generateButton.disabled = true;
     }
 
     document.querySelectorAll('[data-game-option]').forEach(option => {

@@ -1436,7 +1436,7 @@ def team_generator():
         'team_generator.html',
         players=players,
         matches=matches,
-        selected_match_ids=[match['id'] for match in (matches if regenerate else matches[:20])],
+        selected_match_ids=[match['id'] for match in matches],
         invite_all_match_ids=[],
         unavailable_by_match=load_saved_unavailability(matches),
         team_size=get_setting('generator_team_size', 12),
@@ -1687,10 +1687,9 @@ def generate_teams():
     regenerate = request.path == '/team-generator/regenerate'
     
     try:
-        requested_num_games = int(request.form.get('num_games', 4))
         team_size = int(request.form.get('team_size', 12))
     except (TypeError, ValueError):
-        return render_template('team_generator.html', error='Enter a valid number of games and team size.', version=VERSION)
+        return render_template('team_generator.html', error='Enter a valid team size.', version=VERSION)
 
     submitted_match_ids = request.form.getlist('match_ids')
     requested_invite_all_ids = {str(match_id) for match_id in request.form.getlist('invite_all_for')}
@@ -1734,7 +1733,7 @@ def generate_teams():
             invite_all_match_ids=list(invite_all_match_ids),
             unavailable_by_match=unavailable_by_match,
             team_size=team_size,
-            num_games=requested_num_games,
+            num_games=len(selected_matches),
             regenerate=regenerate,
             goalkeeper_percentages={str(p['id']): request.form.get(f"goalkeeper_percentage_{p['id']}", '')
                                     for p in players if p['position'] == 'GK'},
@@ -1752,16 +1751,14 @@ def generate_teams():
             return render_generator_error('One or more selected games are no longer available. Refresh the page and try again.')
         if not selected_matches:
             return render_generator_error('Select at least one game to generate teams for.')
-        if len(selected_matches) > 20 and not regenerate:
-            return render_generator_error('Select 20 games or fewer at a time.')
         num_games = len(selected_matches)
         if not regenerate:
             save_unavailability(selected_matches, unavailable_by_match, active_player_ids)
     else:
-        num_games = requested_num_games
-
-    if num_games < 1 or (num_games > 20 and not regenerate):
-        return render_generator_error('Choose between 1 and 20 games.')
+        return render_generator_error(
+            'Select at least one game to generate teams for.' if matches else
+            'Add fixtures in Match Schedule before generating teams.'
+        )
     if team_size < 9 or team_size > 15:
         return render_generator_error('Team size must be between 9 and 15 players.')
 
