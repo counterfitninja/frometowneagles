@@ -742,8 +742,17 @@
             const raw = localStorage.getItem(STATE_KEY);
             if (raw) {
                 const parsed = JSON.parse(raw);
+                const eligibleIds = new Set(INITIAL_DATA.flatMap(f =>
+                    [...(f.players || []), ...(f.subs || []), ...(f.squad || [])]
+                        .map(p => String(p.id))
+                ));
+                const hasIneligiblePlayers = (parsed.formations || []).some(f =>
+                    ['players', 'subs', 'squad', 'subbedOff'].some(key =>
+                        (f[key] || []).some(p => !eligibleIds.has(String(p.id)))
+                    )
+                );
                 // Basic sanity check — reject stale saves with wrong formation count
-                if (parsed.formations && parsed.formations.length === INITIAL_DATA.length) {
+                if (parsed.formations && parsed.formations.length === INITIAL_DATA.length && !hasIneligiblePlayers) {
                     state = parsed;
                     return;
                 }

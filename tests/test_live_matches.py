@@ -106,6 +106,14 @@ class LiveMatchTests(unittest.TestCase):
         formation_id = self.formation()
         self.fixture(formation_id=formation_id)
         with application.get_db() as conn:
+            conn.executemany(
+                'INSERT INTO players (id, name, status) VALUES (?, ?, ?)',
+                [(6, 'Unavailable active', 'active'), (7, 'Unpicked active', 'active')]
+            )
+            conn.execute(
+                'INSERT INTO player_unavailability (player_id, unavailable_date) VALUES (?, ?)',
+                (6, self.today.isoformat())
+            )
             conn.execute(
                 'INSERT INTO player_unavailability (player_id, unavailable_date) VALUES (?, ?)',
                 (4, self.today.isoformat())
@@ -117,8 +125,8 @@ class LiveMatchTests(unittest.TestCase):
         expected = {
             'playing': ('Alex', 'Sam'),
             'substitutes': ('Alex',),
-            'unavailable': ('Retired',),
-            'not-picked': ('Historic scorer',),
+            'unavailable': ('Unavailable active',),
+            'not-picked': ('Unpicked active',),
         }
         for index, section in enumerate(section_classes):
             with self.subTest(section=section):
@@ -134,6 +142,111 @@ class LiveMatchTests(unittest.TestCase):
                     self.assertIn(name, content)
 
         self.assertIn(f'vs Town&#39;s &lt;/script&gt;', html)
+        self.assertNotIn('Retired', html)
+        self.assertNotIn('Historic scorer', html)
+
+    def retired_formation(self):
+        data = {'formations': [{
+            'name': 'Saved team',
+            'players': [{'id': 1, 'name': 'Alex'}, {'id': '4', 'name': 'Retired'}],
+            'subs': [{'id': 5, 'name': 'Historic scorer'}],
+            'squad': [{'id': 1, 'name': 'Alex'}, {'id': '4', 'name': 'Retired'},
+                      {'id': 5, 'name': 'Historic scorer'}]
+        }]}
+        with application.get_db() as conn:
+            cursor = conn.execute(
+                'INSERT INTO formations (name, data) VALUES (?, ?)',
+                ('Saved team', json.dumps(data))
+            )
+            conn.commit()
+            return cursor.lastrowid, data
+
+    def test_retired_players_are_excluded_from_all_upcoming_team_views(self):
+        formation_id, original = self.retired_formation()
+        today_id = self.fixture(formation_id=formation_id)
+        future_id = self.fixture(2, formation_id)
+        for path in (
+            '/matches/overview', '/matches/overview/text', '/public/next-match',
+            '/public/overview', f'/formations/{formation_id}/gameday',
+            f'/pitch?formation_id={formation_id}', f'/formations/{formation_id}/live',
+            f'/matches/{today_id}/live', f'/matches/{future_id}/live'
+        ):
+            with self.subTest(path=path):
+                html = self.page(path)
+                self.assertNotIn('Retired', html)
+                self.assertNotIn('Historic scorer', html)
+                self.assertIn('Alex', html)
+        for match_id in (today_id, future_id, self.fixture(3)):
+            team = self.client.get(f'/api/matches/{match_id}/team').get_json()
+            self.assertEqual(
+                {p['id'] for p in team['playing'] + team['not_playing']}, {1, 2, 3}
+            )
+        self.assertEqual(self.client.get('/public/players/4').status_code, 404)
+        with application.get_db() as conn:
+            saved = conn.execute('SELECT data FROM formations WHERE id = ?', (formation_id,)).fetchone()[0]
+        self.assertEqual(json.loads(saved), original)
+
+    def test_past_teams_keep_retired_players_even_when_shared_with_upcoming_match(self):
+        formation_id, _ = self.retired_formation()
+        past_id = self.fixture(-1, formation_id)
+        self.fixture(1, formation_id)
+        config = self.config(self.page(f'/matches/{past_id}/live'))
+        self.assertEqual({p['id'] for p in config['squad']}, {1, 4, 5})
+        team = self.client.get(f'/api/matches/{past_id}/team').get_json()
+        self.assertEqual({p['id'] for p in team['playing']}, {1, 4, 5})
+        html = self.page('/public/overview')
+        past, future = html.split('class="match-card"', 2)[1:]
+        self.assertIn('Retired', past)
+        self.assertNotIn('Retired', future)
+        config = self.config(self.page(f'/formations/{formation_id}/live'))
+        self.assertNotIn(4, [p['id'] for p in config['squad']])
+
+    def test_past_only_formation_views_preserve_retired_players(self):
+        formation_id, _ = self.retired_formation()
+        self.fixture(-1, formation_id)
+        for path in (f'/formations/{formation_id}/gameday', f'/pitch?formation_id={formation_id}'):
+            self.assertIn('Retired', self.page(path))
+
+    def test_reactivation_restores_upcoming_eligibility(self):
+        formation_id, _ = self.retired_formation()
+        self.fixture(1, formation_id)
+        self.client.post('/players/4/toggle-status')
+        for path in ('/matches/overview', '/public/next-match', f'/formations/{formation_id}/gameday'):
+            self.assertIn('Retired', self.page(path))
+        self.assertEqual(self.client.get('/public/players/4').status_code, 200)
+
+    def test_stale_saves_cannot_select_retired_players_for_upcoming_teams(self):
+        formation_id, data = self.retired_formation()
+        match_id = self.fixture(1, formation_id)
+        response = self.client.post('/formations/save', json={
+            'id': formation_id, 'name': 'Changed', 'data': json.dumps(data), 'match_id': match_id
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Retired players', response.get_json()['error'])
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute(
+                'SELECT name FROM formations WHERE id = ?', (formation_id,)
+            ).fetchone()[0], 'Saved team')
+
+    def test_new_teams_reject_retired_players_in_all_selection_lists(self):
+        for key in ('players', 'subs', 'squad'):
+            with self.subTest(key=key):
+                response = self.client.post('/formations/save', json={
+                    'name': 'New team',
+                    'data': json.dumps({'formations': [{key: [{'id': '4', 'name': 'Retired'}]}]})
+                })
+                self.assertEqual(response.status_code, 400)
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM formations').fetchone()[0], 0)
+
+    def test_past_team_edits_can_keep_retired_players(self):
+        formation_id, data = self.retired_formation()
+        match_id = self.fixture(-1, formation_id)
+        response = self.client.post('/formations/save', json={
+            'id': formation_id, 'name': 'Historical team', 'data': json.dumps(data), 'match_id': match_id
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Retired', self.page(f'/formations/{formation_id}/gameday'))
 
     def test_matches_overview_excludes_past_matches_and_whatsapp_text(self):
         formation_id = self.formation()
