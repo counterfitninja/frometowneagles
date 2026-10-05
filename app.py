@@ -1607,20 +1607,14 @@ def generate_teams():
             )
 
         eligible_gks = [p for p in eligible_players if p['position'] == 'GK']
-        eligible_outfield = [p for p in eligible_players if p['position'] != 'GK']
         if not eligible_gks:
             return render_generator_error(f'{game_label} has no available goalkeeper.')
-        if not invite_all_players and len(eligible_outfield) + 1 < game_team_size:
-            return render_generator_error(
-                f'{game_label} does not have enough available outfield players to fill a team of {team_size}.'
-            )
 
         game_plans.append({
             'match': game_match,
             'unavailable_ids': unavailable_ids,
             'eligible_players': eligible_players,
             'eligible_gks': eligible_gks,
-            'eligible_outfield': eligible_outfield,
             'invite_all_players': invite_all_players,
             'team_size': game_team_size,
         })
@@ -1672,11 +1666,10 @@ def generate_teams():
     eligible_game_counts = defaultdict(int)
     total_team_slots = 0
     for plan in game_plans:
-        total_team_slots += plan['team_size'] - (len(plan['eligible_gks']) if plan['invite_all_players'] else 1)
-        for player in plan['eligible_outfield']:
+        total_team_slots += plan['team_size']
+        for player in plan['eligible_players']:
             eligible_game_counts[player['id']] += 1
-    outfield_count = len(players) - len(goalkeepers)
-    average_games = total_team_slots / outfield_count if outfield_count else 0
+    average_games = total_team_slots / len(players) if players else 0
 
     def fairness_key(player, player_game_count):
         eligible_games = eligible_game_counts[player['id']]
@@ -1686,31 +1679,67 @@ def generate_teams():
 
     teams = []
     player_game_count = defaultdict(int)
+    keeper_game_count = defaultdict(int)
+    # Reserve all mandatory selections before rotating the remaining places.
+    # Otherwise a keeper can gain extra games before their later in-goal assignments.
+    for game_index, plan in enumerate(game_plans):
+        if plan['invite_all_players']:
+            for player in plan['eligible_players']:
+                player_game_count[player['id']] += 1
+        else:
+            keeper = assigned_keepers[game_index]
+            player_game_count[keeper['id']] += 1
+
+    outfield_teams = {index: [] for index in normal_games}
+
+    def assign_outfield(player, visited):
+        for index in normal_games:
+            plan = game_plans[index]
+            roster = outfield_teams[index]
+            if (index in visited or player not in plan['eligible_players'] or
+                    player['id'] == assigned_keepers[index]['id'] or player in roster):
+                continue
+            visited.add(index)
+            if len(roster) < plan['team_size'] - 1:
+                roster.append(player)
+                return True
+            for previous in roster[:]:
+                if assign_outfield(previous, visited):
+                    roster.remove(previous)
+                    roster.append(player)
+                    return True
+        return False
+
+    # Fill globally rather than fixture by fixture so later mandatory keeper
+    # assignments cannot leave a keeper with more rest games than their peers.
+    optional_slots = sum(game_plans[index]['team_size'] - 1 for index in normal_games)
+    for _ in range(optional_slots):
+        for player in sorted(players, key=lambda p: fairness_key(p, player_game_count)):
+            if assign_outfield(player, set()):
+                player_game_count[player['id']] += 1
+                break
+        else:
+            return render_generator_error('Unable to fill every team with the current availability. Review availability and try again.')
 
     for game_index, plan in enumerate(game_plans):
         eligible_players = plan['eligible_players']
         if plan['invite_all_players']:
             full_team = eligible_players[:]
+            gk_in_starters = random.choice(plan['eligible_gks'])
         else:
-            team_gks = [assigned_keepers[game_index]]
-            remaining_spots = plan['team_size'] - len(team_gks)
-            team_outfield = sorted(
-                plan['eligible_outfield'],
-                key=lambda player: fairness_key(player, player_game_count)
-            )[:remaining_spots]
-            full_team = team_gks + team_outfield
+            gk_in_starters = assigned_keepers[game_index]
+            full_team = [gk_in_starters] + outfield_teams[game_index]
 
         random.shuffle(full_team)
 
-        # Ensure at least one goalkeeper is in the starting nine.
-        gk_in_starters = next(player for player in full_team if player['position'] == 'GK')
+        keeper_game_count[gk_in_starters['id']] += 1
         starters = [gk_in_starters]
-        remaining = [player for player in full_team if player['id'] != gk_in_starters['id']]
+        remaining = [
+            dict(player, position='Outfield') if player['position'] == 'GK' else dict(player)
+            for player in full_team if player['id'] != gk_in_starters['id']
+        ]
         starters.extend(remaining[:8])
         subs = remaining[8:]
-
-        for player in full_team:
-            player_game_count[player['id']] += 1
 
         team_player_ids = {player['id'] for player in full_team}
         unavailable_ids = plan['unavailable_ids']
@@ -1740,7 +1769,7 @@ def generate_teams():
     # Count missed games only where a player was available to attend.
     max_games_missed = max(
         (eligible_game_counts[player['id']] - player_game_count[player['id']]
-         for player in players if player['position'] != 'GK'),
+         for player in players),
         default=0
     )
     unavailable_count = sum(len(plan['unavailable_ids']) for plan in game_plans)
@@ -1755,7 +1784,9 @@ def generate_teams():
     }
     stats['goalkeepers'] = [
         {'name': keeper['name'], 'target': round(weights[keeper['id']], 2),
-         'games': player_game_count[keeper['id']], 'total': num_games}
+         'games': player_game_count[keeper['id']], 'in_goal': keeper_game_count[keeper['id']],
+         'resting': eligible_game_counts[keeper['id']] - player_game_count[keeper['id']],
+         'total': num_games}
         for keeper in goalkeepers
     ]
     

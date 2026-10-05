@@ -38,20 +38,90 @@ class TeamGenerationTests(unittest.TestCase):
         self.assertIsNotNone(match, html)
         return json.loads(match.group(1))
 
-    def test_keeper_percentages_are_independent_of_outfield_rotation(self):
+    def test_keeper_percentages_apply_only_to_games_in_goal(self):
         self.prepare()
         teams = self.teams(self.generate([
             ('goalkeeper_percentage_1', '75'), ('goalkeeper_percentage_4', '25')]))
         counts = Counter(p['id'] for team in teams for p in team['starters'] + team['subs'])
+        goal_counts = Counter(team['starters'][0]['id'] for team in teams)
+        self.assertEqual(goal_counts[1], 3)
+        self.assertEqual(goal_counts[4], 1)
         self.assertEqual(counts[1], 3)
-        self.assertEqual(counts[4], 1)
-        outfield_counts = [counts[pid] for pid in [2, 3] + list(range(5, 17))]
-        self.assertLessEqual(max(outfield_counts) - min(outfield_counts), 1)
+        self.assertIn(counts[4], (2, 3))
+        self.assertLessEqual(max(counts[pid] for pid in range(1, 17)) -
+                             min(counts[pid] for pid in range(1, 17)), 1)
         for team in teams:
             self.assertEqual(len(team['starters']), 9)
             self.assertEqual(sum(p['position'] == 'GK' for p in team['starters']), 1)
         with application.get_db() as conn:
             self.assertEqual(conn.execute('SELECT COUNT(*) FROM formations').fetchone()[0], 0)
+
+    def test_keepers_share_rest_rotation_over_many_games(self):
+        self.prepare(games=20)
+        for _ in range(10):
+            teams = self.teams(self.generate([
+                ('goalkeeper_percentage_1', '50'), ('goalkeeper_percentage_4', '50')], games=20))
+            counts = Counter(p['id'] for team in teams for p in team['starters'] + team['subs'])
+            self.assertEqual(Counter(team['starters'][0]['id'] for team in teams), {1: 10, 4: 10})
+            self.assertEqual(sum(counts.values()), 180)
+            self.assertLessEqual(max(counts.values()) - min(counts.values()), 1)
+            for team in teams:
+                selected = team['starters'] + team['subs']
+                self.assertEqual(len({p['id'] for p in selected}), 9)
+                self.assertEqual(len(team['not_playing']), 7)
+                self.assertEqual(sum(p['position'] == 'GK' for p in selected), 1)
+            for keeper_id in (1, 4):
+                self.assertGreater(counts[keeper_id], 10)
+                self.assertIn(20 - counts[keeper_id], (8, 9))
+
+    def test_zero_goal_target_keeper_can_play_outfield_and_saved_role_is_preserved(self):
+        self.prepare()
+        teams = self.teams(self.generate([
+            ('goalkeeper_percentage_1', '100'), ('goalkeeper_percentage_4', '0')]))
+        appearances = [(team, player) for team in teams for player in team['starters'] + team['subs']
+                       if player['id'] == 4]
+        self.assertGreater(len(appearances), 0)
+        self.assertLess(len(appearances), 4)
+        self.assertTrue(all(player['position'] == 'Outfield' for team, player in appearances))
+        team = appearances[0][0]
+        response = self.client.post('/formations/save', json={
+            'name': 'Mixed roles', 'match_id': team['match_id'], 'private_team': True,
+            'data': json.dumps({'formations': [{'players': team['starters'], 'subs': team['subs']}]})})
+        self.assertTrue(response.json['success'])
+        with application.get_db() as conn:
+            formation = json.loads(conn.execute('SELECT data FROM formations WHERE id=?',
+                                                (response.json['id'],)).fetchone()[0])['formations'][0]
+            keeper = next(p for p in formation['players'] + formation['subs'] if p['id'] == 4)
+            self.assertEqual(keeper['position'], 'Outfield')
+            self.assertEqual(conn.execute('SELECT position FROM players WHERE id=4').fetchone()[0], 'GK')
+
+    def test_multiple_keepers_can_fill_normal_outfield_places(self):
+        self.prepare(games=1)
+        with application.get_db() as conn:
+            conn.execute("UPDATE players SET position='GK'")
+            conn.commit()
+        teams = self.teams(self.generate(games=1))
+        selected = teams[0]['starters'] + teams[0]['subs']
+        self.assertEqual(len(selected), 9)
+        self.assertEqual(sum(p['position'] == 'GK' for p in selected), 1)
+        self.assertEqual(sum(p['position'] == 'Outfield' for p in selected), 8)
+
+    def test_shared_rotation_respects_availability_and_invite_all(self):
+        self.prepare()
+        teams = self.teams(self.generate([
+            ('goalkeeper_percentage_1', '67'), ('goalkeeper_percentage_4', '33'),
+            ('unavailable_for_1', '4'), ('unavailable_for_2', '4'),
+            ('unavailable_for_3', '2'), ('invite_all_for', '4')]))
+        self.assertEqual(Counter(team['starters'][0]['id'] for team in teams[:3]), {1: 2, 4: 1})
+        for index, unavailable in ((0, 4), (1, 4), (2, 2)):
+            selected = teams[index]['starters'] + teams[index]['subs']
+            self.assertNotIn(unavailable, [p['id'] for p in selected])
+            self.assertNotIn(unavailable, [p['id'] for p in teams[index]['not_playing']])
+            self.assertIn(unavailable, [p['id'] for p in teams[index]['unavailable']])
+        selected = teams[3]['starters'] + teams[3]['subs']
+        self.assertEqual(len(selected), 16)
+        self.assertEqual(sum(p['position'] == 'GK' for p in selected), 1)
+        self.assertEqual(teams[3]['not_playing'], [])
 
     def test_rounds_targets_to_whole_games_and_accepts_zero(self):
         self.prepare(games=3)

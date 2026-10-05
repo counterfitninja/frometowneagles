@@ -9,7 +9,7 @@ This is a Flask-based football team management application designed to run on Pt
 - Public pages for parents/players
 - Click a player name on either public page to see upcoming non-playing dates without logging in (unselected teams are shown separately)
 - Offline PWA support
-- Team generator with balanced outfield rotation, per-goalkeeper game targets and fixture-specific player availability
+- Team generator with shared rest-game rotation, per-goalkeeper in-goal targets and fixture-specific player availability
 - One live match screen for the score, scorers, assists, substitutions and man of the match
 
 ## Match controls
@@ -33,12 +33,17 @@ under its **More** menu.
 ## Export player availability
 
 In **Generate teams**, set each goalkeeper's target percentage (totalling 100%),
-or leave all targets blank for equal rotation. Normal fixtures select one keeper;
-targets are rounded to whole games across those fixtures. Goalkeepers are excluded
-from outfield rest-game balancing. If availability prevents meeting the targets,
+or leave all targets blank for equal rotation. Percentages apply to games **in goal**,
+not total team selections, and are rounded to whole games across normal fixtures.
+Keepers not assigned in goal are eligible for outfield places and share the same
+rest-game balancing as all other players. Both in-goal and outfield appearances
+count as playing; mandatory in-goal assignments take priority if they exceed a
+keeper's fair share of games. If availability prevents meeting the targets,
 generation reports an error so you can adjust them. **Invite all** fixtures include
-all available keepers and do not count towards these targets. The summary shows
-each keeper's actual selections, including invite-all fixtures.
+all available players and do not count towards these targets. One keeper is assigned
+in goal; others are marked outfield in the generated and saved team, without
+changing their player profile. The summary separates in-goal, outfield and rest
+games, including invite-all fixtures.
 
 Generated teams are private. **Save private draft** stores a team and, when a
 fixture is chosen, links it without exposing its selections on public pages.
