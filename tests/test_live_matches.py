@@ -102,6 +102,39 @@ class LiveMatchTests(unittest.TestCase):
         self.assertEqual([p['id'] for p in self.config(html)['squad']], [1, 2, 3])
         self.assertEqual(self.config(self.page(f'/matches/{match_id}/result'))['matchId'], match_id)
 
+    def test_matches_overview_splits_substitutes_unavailable_and_unpicked(self):
+        formation_id = self.formation()
+        self.fixture(formation_id=formation_id)
+        with application.get_db() as conn:
+            conn.execute(
+                'INSERT INTO player_unavailability (player_id, unavailable_date) VALUES (?, ?)',
+                (4, self.today.isoformat())
+            )
+            conn.commit()
+
+        html = self.page('/matches/overview')
+        section_classes = ('playing', 'substitutes', 'unavailable', 'not-picked')
+        expected = {
+            'playing': ('Alex', 'Sam'),
+            'substitutes': ('Alex',),
+            'unavailable': ('Retired',),
+            'not-picked': ('Historic scorer',),
+        }
+        for index, section in enumerate(section_classes):
+            with self.subTest(section=section):
+                start = html.index(f'class="team-section {section}"')
+                next_section = next(
+                    (html.find(f'class="team-section {next_section}"', start + 1)
+                     for next_section in section_classes[index + 1:]
+                     if html.find(f'class="team-section {next_section}"', start + 1) >= 0),
+                    len(html)
+                )
+                content = html[start:next_section]
+                for name in expected[section]:
+                    self.assertIn(name, content)
+
+        self.assertIn(f'vs Town&#39;s &lt;/script&gt;', html)
+
     def test_legacy_matchday_redirects_to_live(self):
         formation_id = self.formation()
         self.fixture(formation_id=formation_id)

@@ -956,6 +956,8 @@ def matches_overview():
         # Get all players
         all_players = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
     
+    unavailable_by_match = load_saved_unavailability(matches_list)
+
     # Process each match
     matches_with_teams = []
     for match in matches_list:
@@ -964,30 +966,41 @@ def matches_overview():
         if match_dict['formation_data']:
             formation_data = json.loads(match_dict['formation_data'])
             
-            # Get players in formations
             playing_player_ids = set()
+            substitute_player_ids = set()
             if 'formations' in formation_data:
                 for formation in formation_data['formations']:
                     for player in formation.get('players', []):
                         playing_player_ids.add(str(player['id']))
                     for sub in formation.get('subs', []):
-                        playing_player_ids.add(str(sub['id']))
+                        substitute_player_ids.add(str(sub['id']))
+
+            substitute_player_ids -= playing_player_ids
+            selected_player_ids = playing_player_ids | substitute_player_ids
+            unavailable_ids = set(unavailable_by_match.get(str(match_dict['id']), []))
             
-            print(f"Match: {match_dict['opponent']}, Playing IDs: {playing_player_ids}")
-            
-            # Separate playing vs not playing
             playing = [dict(p) for p in all_players if str(p['id']) in playing_player_ids]
-            not_playing = [dict(p) for p in all_players if str(p['id']) not in playing_player_ids]
-            
-            print(f"  Playing: {len(playing)}, Not Playing: {len(not_playing)}")
-            if not_playing:
-                print(f"  Not playing: {[p['name'] for p in not_playing]}")
-            
+            substitutes = [dict(p) for p in all_players if str(p['id']) in substitute_player_ids]
+            not_available = [
+                dict(p) for p in all_players
+                if str(p['id']) not in selected_player_ids and str(p['id']) in unavailable_ids
+            ]
+            not_picked = [
+                dict(p) for p in all_players
+                if str(p['id']) not in selected_player_ids and str(p['id']) not in unavailable_ids
+            ]
+
             match_dict['playing'] = playing
-            match_dict['not_playing'] = not_playing
+            match_dict['substitutes'] = substitutes
+            match_dict['not_available'] = not_available
+            match_dict['not_picked'] = not_picked
+            match_dict['team_selected'] = bool(selected_player_ids)
         else:
             match_dict['playing'] = []
-            match_dict['not_playing'] = [dict(p) for p in all_players]
+            match_dict['substitutes'] = []
+            match_dict['not_available'] = []
+            match_dict['not_picked'] = []
+            match_dict['team_selected'] = False
         
         matches_with_teams.append(match_dict)
     
@@ -1001,9 +1014,9 @@ def matches_overview():
         player_stats[player_id]['position'] = player['position']
     
     for match in matches_with_teams:
-        for player in match['playing']:
+        for player in match['playing'] + match['substitutes']:
             player_stats[str(player['id'])]['playing'] += 1
-        for player in match['not_playing']:
+        for player in match['not_available'] + match['not_picked']:
             player_stats[str(player['id'])]['not_playing'] += 1
     
     # Convert to sorted list
