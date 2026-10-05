@@ -2152,6 +2152,16 @@ def generate_teams():
          'total': num_games}
         for keeper in goalkeepers
     ]
+    stats['players'] = [
+        {
+            'id': player['id'],
+            'name': player['name'],
+            'in_squad': player_game_count[player['id']],
+            'rested': eligible_game_counts[player['id']] - player_game_count[player['id']],
+            'unavailable': num_games - eligible_game_counts[player['id']],
+        }
+        for player in sorted(players, key=lambda player: player['name'].casefold())
+    ]
 
     generator_settings = [
         ('generator_team_size', str(team_size)),
