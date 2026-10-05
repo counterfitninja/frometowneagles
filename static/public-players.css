@@ -72,3 +72,81 @@ a.upcoming-not-playing-chip:focus-visible,
     padding-top: 16px;
     border-top: 1px solid var(--fte-paper-line);
 }
+
+.availability-date-form {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+.availability-date-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
+.availability-date-form input {
+    max-width: 100%;
+    min-height: 44px;
+    padding: 10px;
+    border: 1px solid var(--fte-paper-line);
+    border-radius: var(--fte-radius-control);
+    background: var(--fte-paper-fresh);
+    color: var(--fte-dugout);
+    font: inherit;
+}
+
+.player-schedule button {
+    min-height: 44px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.player-schedule button:focus-visible,
+.player-schedule input:focus-visible {
+    outline: 3px solid var(--fte-slate);
+    outline-offset: 3px;
+}
+
+.availability-confirmation {
+    padding: 18px;
+    border: 1px solid var(--fte-paper-line);
+    border-radius: var(--fte-radius-panel);
+    background: var(--fte-paper-fresh);
+}
+
+.availability-confirmation-status {
+    margin-bottom: 12px;
+    font-weight: 700;
+}
+
+.availability-confirm-label {
+    display: flex;
+    align-items: start;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.availability-confirm-label input {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    accent-color: var(--fte-dugout);
+}
+
+.availability-confirmation > p {
+    margin-bottom: 12px;
+}
+
+.availability-message {
+    padding: 12px;
+    border: 1px solid var(--fte-gold);
+    background: var(--fte-paper-fresh);
+}
+
+.availability-error {
+    border-color: var(--fte-red);
+}

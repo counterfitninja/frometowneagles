@@ -52,6 +52,138 @@ class SavedUnavailabilityTests(unittest.TestCase):
         tag = re.search(r'<input\b[^>]*\bid="' + re.escape(element_id) + r'"[^>]*>', html)[0]
         return bool(re.search(r'\bchecked\b', tag))
 
+    def public_form(self, player_id=1):
+        html = self.client.get(f'/public/players/{player_id}').get_data(as_text=True)
+        return {
+            name: re.search(r'name="' + name + r'" value="([^"]*)"', html)[1]
+            for name in ('csrf_token', 'availability_revision')
+        }
+
+    def public_update(self, action, player_id=1, **values):
+        return self.client.post(f'/public/players/{player_id}', data={
+            **self.public_form(player_id), 'action': action, **values,
+        }, follow_redirects=True)
+
+    def confirmed(self, player_id=1):
+        return player_id in application.availability_confirmations()
+
+    def test_parents_manage_shared_dates_without_login(self):
+        future = (self.today + timedelta(days=5)).isoformat()
+        html = self.public_update('add', unavailable_date=future).get_data(as_text=True)
+        self.assertIn('Unavailable date saved.', html)
+        self.assertIn(future, html)
+        self.assertEqual(self.saved(), [(1, future)])
+        self.public_update('add', unavailable_date=future)
+        self.assertEqual(self.saved(), [(1, future)])
+        # A fixture added later on that date uses the parent's saved availability.
+        match_id = self.fixture(5)
+        self.login()
+        html = self.client.get('/team-generator').get_data(as_text=True)
+        self.assertTrue(self.checked(html, f'unavailable-{match_id}-1'))
+        self.assertIn('Awaiting confirmation', html)
+        self.assertIn('href="/public/players/1#availability"', html)
+        self.assertIn(future, self.client.get('/players').get_data(as_text=True))
+        self.public_update('remove', unavailable_date=future)
+        self.assertEqual(self.saved(), [])
+        self.assertFalse(self.checked(self.client.get('/team-generator').get_data(as_text=True),
+                                      f'unavailable-{match_id}-1'))
+
+    def test_confirmation_requires_checkbox_and_supports_no_unavailable_dates(self):
+        response = self.public_update('confirm')
+        self.assertIn('Tick the checkbox', response.get_data(as_text=True))
+        self.assertFalse(self.confirmed())
+        html = self.public_update('confirm', availability_complete='yes').get_data(as_text=True)
+        self.assertIn('Availability confirmed.', html)
+        self.assertTrue(self.checked(html, 'availability-complete'))
+        self.assertTrue(self.confirmed())
+        self.login()
+        html = self.client.get('/team-generator').get_data(as_text=True)
+        self.assertIn('Parent availability confirmations (1/3)', html)
+        self.assertIn('Confirmed ' + self.today.strftime('%d/%m/%Y'), html)
+
+    def test_date_changes_clear_confirmation_but_duplicate_add_does_not(self):
+        future = (self.today + timedelta(days=5)).isoformat()
+        self.public_update('add', unavailable_date=future)
+        self.public_update('confirm', availability_complete='yes')
+        self.public_update('add', unavailable_date=future)
+        self.assertTrue(self.confirmed())
+        self.public_update('remove', unavailable_date=future)
+        self.assertFalse(self.confirmed())
+        self.public_update('confirm', availability_complete='yes')
+        self.public_update('add', unavailable_date=future)
+        self.assertFalse(self.confirmed())
+
+    def test_manager_edits_and_generator_saves_invalidate_only_changed_players(self):
+        match_id = self.fixture(5)
+        future = (self.today + timedelta(days=5)).isoformat()
+        self.public_update('confirm', availability_complete='yes')
+        self.public_update('confirm', player_id=2, availability_complete='yes')
+        self.login()
+        self.client.post('/players/1/unavailability', data={'unavailable_date': future})
+        self.assertFalse(self.confirmed())
+        self.assertTrue(self.confirmed(2))
+        self.public_update('confirm', availability_complete='yes')
+        data = MultiDict([('match_ids', str(match_id)), (f'unavailable_for_{match_id}', '1')])
+        self.client.post('/team-generator/save-availability', data=data)
+        self.assertTrue(self.confirmed())
+        self.client.post('/team-generator/save-availability', data={'match_ids': str(match_id)})
+        self.assertFalse(self.confirmed())
+        self.assertTrue(self.confirmed(2))
+        self.client.post('/players/1/unavailability', data={'unavailable_date': future})
+        self.public_update('confirm', availability_complete='yes')
+        self.client.post(f'/players/1/unavailability/{future}/delete')
+        self.assertFalse(self.confirmed())
+
+    def test_stale_confirmation_cannot_confirm_dates_added_in_another_tab(self):
+        form = self.public_form()
+        self.public_update('add', unavailable_date=(self.today + timedelta(days=2)).isoformat())
+        response = self.client.post('/public/players/1', data={
+            **form, 'action': 'confirm', 'availability_complete': 'yes',
+        }, follow_redirects=True)
+        self.assertIn('dates changed', response.get_data(as_text=True))
+        self.assertFalse(self.confirmed())
+
+    def test_public_updates_validate_dates_tokens_and_active_player(self):
+        for value in ('nonsense', '2026-02-30', (self.today - timedelta(days=1)).isoformat()):
+            self.assertIn('Choose', self.public_update('add', unavailable_date=value).get_data(as_text=True))
+        self.assertEqual(self.saved(), [])
+        for token in ('', 'invalid'):
+            response = self.client.post('/public/players/1', data={
+                'csrf_token': token, 'action': 'add', 'unavailable_date': self.today.isoformat(),
+            })
+            self.assertEqual(response.status_code, 400)
+        response = self.client.post('/public/players/1', data={**self.public_form(), 'action': 'unknown'})
+        self.assertEqual(response.status_code, 400)
+        with application.get_db() as conn:
+            conn.execute("UPDATE players SET status = 'retired' WHERE id = 1")
+            conn.commit()
+        for player_id in (1, 999):
+            self.assertEqual(self.client.post(f'/public/players/{player_id}', data={}).status_code, 404)
+
+    def test_confirmation_expires_each_season_and_ignores_retired_players(self):
+        self.public_update('confirm', availability_complete='yes')
+        with application.get_db() as conn:
+            conn.execute("UPDATE player_availability_confirmations SET season_start = '2000-09-01'")
+            conn.commit()
+        self.assertFalse(self.confirmed())
+        html = self.client.get('/public/players/1').get_data(as_text=True)
+        self.assertFalse(self.checked(html, 'availability-complete'))
+        self.public_update('confirm', availability_complete='yes')
+        with application.get_db() as conn:
+            conn.execute("UPDATE players SET status = 'retired' WHERE id = 1")
+            conn.commit()
+        self.assertFalse(self.confirmed())
+
+    def test_parent_dates_do_not_change_selected_teams_and_are_not_cached(self):
+        self.fixture_with_squad(5, [1, 2])
+        future = (self.today + timedelta(days=5)).isoformat()
+        self.public_update('add', unavailable_date=future)
+        with application.get_db() as conn:
+            data = json.loads(conn.execute('SELECT data FROM formations').fetchone()['data'])
+            self.assertEqual([p['id'] for p in data['formations'][0]['players']], [1, 2])
+        response = self.client.get('/public/players/1')
+        self.assertEqual(response.headers['Cache-Control'], 'private, no-store')
+
     def test_save_persists_by_date_and_prefills_generator(self):
         self.login()
         match_id = self.fixture(3)

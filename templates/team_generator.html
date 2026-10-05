@@ -494,6 +494,24 @@
 {% endblock %}
 
 {% block content %}
+{% set parent_confirmations = availability_confirmations() %}
+<details class="generator-section">
+    <summary><strong>Parent availability confirmations ({{ parent_confirmations|length }}/{{ players|length }})</strong></summary>
+    <p class="selection-help">Confirmation covers the current season and is cleared when upcoming unavailable dates change. Missing confirmation does not prevent selection. Open a player's page to review their saved dates.</p>
+    <div class="availability-table-wrap">
+        <table class="availability-table">
+            <thead><tr><th scope="col">Player</th><th scope="col">Parent confirmation</th></tr></thead>
+            <tbody>
+                {% for player in players %}
+                <tr>
+                    <td><a href="{{ url_for('public_player', player_id=player.id) }}#availability">{{ player.name }}</a></td>
+                    <td>{% if player.id in parent_confirmations %}Confirmed {{ parent_confirmations[player.id][:10] | ukdate }}{% else %}Awaiting confirmation{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
 <div class="card">
     <h2>🎲 Team Generator</h2>
     <p style="color: #756d66; margin-bottom: 20px;">Automatically generate balanced teams for multiple games</p>
@@ -598,7 +616,7 @@
                                             <tbody>
                                                 {% for player in players %}
                                                 <tr data-player-row data-player-name="{{ player.name|lower }}">
-                                                    <td><span class="availability-player-name">{{ player.name }}</span></td>
+                                                    <td><a class="availability-player-name" href="{{ url_for('public_player', player_id=player.id) }}#availability">{{ player.name }}</a></td>
                                                     <td><span class="availability-position">{{ player.position or 'Field player' }}</span></td>
                                                     <td>
                                                         <label class="availability-status" for="unavailable-{{ match.id }}-{{ player.id }}">
