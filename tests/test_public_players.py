@@ -120,6 +120,7 @@ class PublicPlayerTests(unittest.TestCase):
             for player_id in (1, 2, 3):
                 self.assertIn(f'href="/public/players/{player_id}"', html)
             self.assertIn('When am I not playing?', html)
+            self.assertIn('<details class="card player-picker" open>', html)
 
     def test_playing_and_non_playing_chips_link_to_player(self):
         self.fixture('First fixture', 0, [{'players': [{'id': 1}]}])
