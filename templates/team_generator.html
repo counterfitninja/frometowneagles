@@ -612,6 +612,7 @@
                 {% else %}
                 <div class="empty-game-picker">
                     No upcoming games without formations. <a href="/matches">Add or review games in Match Schedule</a>, or use a manual game count below.
+                    Saved player unavailability is kept on the <a href="{{ url_for('players') }}#saved-unavailability">Players page</a>, where you can <a href="{{ url_for('export_saved_unavailability') }}">export it (CSV)</a>.
                 </div>
                 {% endif %}
             </div>
@@ -646,6 +647,11 @@
                 <details class="action-menu">
                     <summary class="btn">More</summary>
                     <div class="menu-actions">
+                        <button type="submit" id="saveAvailabilityButton"
+                                formaction="{{ url_for('save_player_availability') }}" formnovalidate>
+                            Save availability to players
+                        </button>
+                        <a href="{{ url_for('export_saved_unavailability') }}" style="padding: 12px;">Export saved unavailability (CSV)</a>
                         <button type="submit" id="exportAvailabilityButton"
                                 formaction="{{ url_for('export_player_availability') }}" formnovalidate>
                             Export availability (CSV)
@@ -860,6 +866,8 @@ function syncGameSelection() {
         gamesInput.value = selectedCount;
         generateButton.disabled = selectedCount === 0;
         if (exportButton) exportButton.disabled = selectedCount === 0;
+        const saveAvailabilityButton = document.getElementById('saveAvailabilityButton');
+        if (saveAvailabilityButton) saveAvailabilityButton.disabled = selectedCount === 0;
     } else {
         const manualGamesInput = document.getElementById('manual_num_games');
         if (manualGamesInput) {

@@ -106,6 +106,17 @@ def init_db():
         match_columns = {column['name'] for column in conn.execute('PRAGMA table_info(matches)').fetchall()}
         if 'team_published' not in match_columns:
             conn.execute('ALTER TABLE matches ADD COLUMN team_published INTEGER NOT NULL DEFAULT 1')
+
+        # Stored by date rather than fixture so it survives squad resets and fixture edits.
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS player_unavailability (
+                player_id INTEGER NOT NULL,
+                unavailable_date TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (player_id, unavailable_date),
+                FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+            )
+        ''')
         
         conn.execute('''
             CREATE TABLE IF NOT EXISTS settings (
@@ -221,15 +232,136 @@ def index():
     else:
         return redirect(url_for('public_next_match'))
 
+def spreadsheet_text(value):
+    text = str(value or '')
+    # CSV quoting does not prevent spreadsheet formula execution.
+    if text.lstrip().startswith(('=', '+', '-', '@')) or text.startswith(('\t', '\r', '\n')):
+        return "'" + text
+    return text
+
+
 @app.route('/players')
 @login_required
 def players():
+    today = datetime.now().date().isoformat()
     with get_db() as conn:
         players_list = conn.execute('''
             SELECT * FROM players
             ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, name
         ''').fetchall()
-    return render_template('players.html', players=players_list, version=VERSION)
+        saved_rows = conn.execute('''
+            SELECT player_id, unavailable_date FROM player_unavailability
+            WHERE unavailable_date >= ? ORDER BY unavailable_date
+        ''', (today,)).fetchall()
+    unavailable_dates = {}
+    for row in saved_rows:
+        unavailable_dates.setdefault(row['player_id'], []).append(row['unavailable_date'])
+    return render_template('players.html', players=players_list,
+                           unavailable_dates=unavailable_dates,
+                           error=request.args.get('error'), version=VERSION)
+
+
+def load_saved_unavailability(matches):
+    """Map each fixture id to the player ids saved as unavailable on its date."""
+    dates = {match['match_date'] for match in matches}
+    if not dates:
+        return {}
+    with get_db() as conn:
+        rows = conn.execute(
+            'SELECT player_id, unavailable_date FROM player_unavailability WHERE unavailable_date IN (%s)'
+            % ','.join('?' * len(dates)), tuple(dates)
+        ).fetchall()
+    by_date = {}
+    for row in rows:
+        by_date.setdefault(row['unavailable_date'], []).append(str(row['player_id']))
+    return {str(match['id']): list(by_date.get(match['match_date'], [])) for match in matches}
+
+
+def save_unavailability(matches, unavailable_by_match, active_player_ids):
+    """Replace saved active-player unavailability for the given fixtures' dates."""
+    by_date = {}
+    for match in matches:
+        ticked = {pid for pid in unavailable_by_match.get(str(match['id']), []) if pid in active_player_ids}
+        by_date.setdefault(match['match_date'], set()).update(ticked)
+    if not by_date or not active_player_ids:
+        return
+    active = sorted(int(pid) for pid in active_player_ids)
+    with get_db() as conn:
+        for match_date, player_ids in by_date.items():
+            conn.execute(
+                'DELETE FROM player_unavailability WHERE unavailable_date = ? AND player_id IN (%s)'
+                % ','.join('?' * len(active)), (match_date, *active)
+            )
+            conn.executemany(
+                'INSERT OR IGNORE INTO player_unavailability (player_id, unavailable_date) VALUES (?, ?)',
+                [(int(pid), match_date) for pid in sorted(player_ids, key=int)]
+            )
+        conn.commit()
+
+
+@app.route('/players/<int:player_id>/unavailability', methods=['POST'])
+@login_required
+def add_player_unavailability(player_id):
+    raw_date = request.form.get('unavailable_date', '').strip()
+    try:
+        unavailable_date = datetime.strptime(raw_date, '%Y-%m-%d').date().isoformat()
+    except ValueError:
+        return redirect(url_for('players', error='Choose a valid date.'))
+    with get_db() as conn:
+        if conn.execute('SELECT 1 FROM players WHERE id = ?', (player_id,)).fetchone() is None:
+            abort(404)
+        conn.execute('INSERT OR IGNORE INTO player_unavailability (player_id, unavailable_date) VALUES (?, ?)',
+                     (player_id, unavailable_date))
+        conn.commit()
+    return redirect(url_for('players') + f'#player-{player_id}')
+
+
+@app.route('/players/<int:player_id>/unavailability/<unavailable_date>/delete', methods=['POST'])
+@login_required
+def delete_player_unavailability(player_id, unavailable_date):
+    with get_db() as conn:
+        conn.execute('DELETE FROM player_unavailability WHERE player_id = ? AND unavailable_date = ?',
+                     (player_id, unavailable_date))
+        conn.commit()
+    return redirect(url_for('players') + f'#player-{player_id}')
+
+
+@app.route('/players/unavailability/export')
+@login_required
+def export_saved_unavailability():
+    import csv
+    from io import StringIO
+
+    include_past = request.args.get('include_past') == '1'
+    today = datetime.now().date().isoformat()
+    with get_db() as conn:
+        rows = conn.execute('''
+            SELECT p.id, p.name, p.position, p.status, u.unavailable_date
+            FROM player_unavailability u JOIN players p ON p.id = u.player_id
+            WHERE ? OR u.unavailable_date >= ?
+            ORDER BY u.unavailable_date, p.name, p.id
+        ''', (int(include_past), today)).fetchall()
+        fixtures = conn.execute('SELECT match_date, opponent FROM matches ORDER BY match_date, id').fetchall()
+    fixtures_by_date = {}
+    for fixture in fixtures:
+        fixtures_by_date.setdefault(fixture['match_date'], []).append(fixture['opponent'])
+
+    output = StringIO(newline='')
+    writer = csv.writer(output)
+    writer.writerow(['Date', 'Fixtures', 'Player ID', 'Player', 'Position', 'Status'])
+    for row in rows:
+        writer.writerow([
+            datetime.strptime(row['unavailable_date'], '%Y-%m-%d').strftime('%d/%m/%Y'),
+            spreadsheet_text('; '.join(fixtures_by_date.get(row['unavailable_date'], []))),
+            row['id'], spreadsheet_text(row['name']), spreadsheet_text(row['position']),
+            row['status'].capitalize()
+        ])
+    response = app.response_class('\ufeff' + output.getvalue(), mimetype='text/csv')
+    response.headers['Content-Disposition'] = (
+        'attachment; filename="saved-unavailability-' + datetime.now().strftime('%Y-%m-%d') + '.csv"'
+    )
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 @app.route('/stats')
 @login_required
@@ -360,6 +492,7 @@ def add_player():
 @login_required
 def delete_player(player_id):
     with get_db() as conn:
+        conn.execute('DELETE FROM player_unavailability WHERE player_id = ?', (player_id,))
         conn.execute('DELETE FROM players WHERE id = ?', (player_id,))
         conn.commit()
     
@@ -1284,10 +1417,40 @@ def team_generator():
         matches=matches,
         selected_match_ids=[match['id'] for match in matches[:20]],
         invite_all_match_ids=[],
-        unavailable_by_match={},
+        unavailable_by_match=load_saved_unavailability(matches),
         team_size=12,
         num_games=len(matches) if matches else 4,
         version=VERSION
+    )
+
+
+@app.route('/team-generator/save-availability', methods=['POST'])
+@login_required
+def save_player_availability():
+    players, matches = availability_export_context()
+    active_ids = {str(player['id']) for player in players}
+    submitted_ids = set(request.form.getlist('match_ids'))
+    unavailable_by_match = {
+        str(match['id']): [pid for pid in request.form.getlist(f"unavailable_for_{match['id']}") if pid in active_ids]
+        for match in matches
+    }
+    selected = [match for match in matches if str(match['id']) in submitted_ids]
+    context = dict(
+        players=players, matches=matches,
+        selected_match_ids=[match['id'] for match in selected],
+        unavailable_by_match=unavailable_by_match,
+        invite_all_match_ids=request.form.getlist('invite_all_for'),
+        team_size=request.form.get('team_size', 12), num_games=len(selected), version=VERSION
+    )
+    if not selected:
+        return render_template('team_generator.html', error='Select at least one fixture to save availability.',
+                               **context), 400
+    save_unavailability(selected, unavailable_by_match, active_ids)
+    return render_template(
+        'team_generator.html',
+        success=f'Saved availability against players for {len(selected)} fixture(s). '
+                'It is kept even if squads are reset.',
+        **context
     )
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -1431,13 +1594,6 @@ def export_player_availability():
             num_games=len(selected_matches), version=VERSION
         ), 400
 
-    def spreadsheet_text(value):
-        text = str(value or '')
-        # CSV quoting does not prevent spreadsheet formula execution.
-        if text.lstrip().startswith(('=', '+', '-', '@')) or text.startswith(('\t', '\r', '\n')):
-            return "'" + text
-        return text
-
     output = StringIO(newline='')
     writer = csv.writer(output)
     writer.writerow(['Fixture ID', 'Date', 'Opponent', 'Location',
@@ -1566,6 +1722,7 @@ def generate_teams():
         if len(selected_matches) > 20:
             return render_generator_error('Select 20 games or fewer at a time.')
         num_games = len(selected_matches)
+        save_unavailability(selected_matches, unavailable_by_match, active_player_ids)
     else:
         num_games = requested_num_games
 
