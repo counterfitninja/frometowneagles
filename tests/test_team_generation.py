@@ -1,0 +1,201 @@
+import json
+import re
+import unittest
+from collections import Counter
+from datetime import timedelta
+from werkzeug.datastructures import MultiDict
+
+import test_public_players as fixtures
+
+application = fixtures.application
+
+
+class TeamGenerationTests(unittest.TestCase):
+    setUp = fixtures.PublicPlayerTests.setUp
+    tearDown = fixtures.PublicPlayerTests.tearDown
+
+    def prepare(self, games=4):
+        with self.client.session_transaction() as session:
+            session['logged_in'] = True
+        with application.get_db() as conn:
+            conn.execute("INSERT INTO players (id, name, position) VALUES (4, 'Blake', 'GK')")
+            conn.executemany('INSERT INTO players (id, name, position) VALUES (?, ?, ?)',
+                             [(pid, f'Player {pid}', 'MID') for pid in range(5, 17)])
+            for day in range(games):
+                conn.execute('INSERT INTO matches (match_date, opponent) VALUES (?, ?)',
+                             ((self.today + timedelta(days=day)).isoformat(), f'Town {day}'))
+            conn.commit()
+
+    def generate(self, extra=(), games=4):
+        values = [('team_size', '9'), ('num_games', str(games))]
+        values.extend(('match_ids', str(pid)) for pid in range(1, games + 1))
+        response = self.client.post('/team-generator/generate', data=MultiDict(values + list(extra)))
+        self.assertEqual(response.status_code, 200)
+        return response.get_data(as_text=True)
+
+    def teams(self, html):
+        match = re.search(r'\n    generatedTeams = (\[.*?\]);', html)
+        self.assertIsNotNone(match, html)
+        return json.loads(match.group(1))
+
+    def test_keeper_percentages_are_independent_of_outfield_rotation(self):
+        self.prepare()
+        teams = self.teams(self.generate([
+            ('goalkeeper_percentage_1', '75'), ('goalkeeper_percentage_4', '25')]))
+        counts = Counter(p['id'] for team in teams for p in team['starters'] + team['subs'])
+        self.assertEqual(counts[1], 3)
+        self.assertEqual(counts[4], 1)
+        outfield_counts = [counts[pid] for pid in [2, 3] + list(range(5, 17))]
+        self.assertLessEqual(max(outfield_counts) - min(outfield_counts), 1)
+        for team in teams:
+            self.assertEqual(len(team['starters']), 9)
+            self.assertEqual(sum(p['position'] == 'GK' for p in team['starters']), 1)
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM formations').fetchone()[0], 0)
+
+    def test_rounds_targets_to_whole_games_and_accepts_zero(self):
+        self.prepare(games=3)
+        teams = self.teams(self.generate([
+            ('goalkeeper_percentage_1', '50'), ('goalkeeper_percentage_4', '50')], games=3))
+        counts = Counter(p['id'] for team in teams for p in team['starters'] if p['position'] == 'GK')
+        self.assertEqual(sorted(counts.values()), [1, 2])
+        teams = self.teams(self.generate([
+            ('goalkeeper_percentage_1', '100'), ('goalkeeper_percentage_4', '0')], games=3))
+        self.assertTrue(all(team['starters'][0]['id'] == 1 for team in teams))
+
+    def test_availability_reassigns_keeper_slots(self):
+        self.prepare()
+        teams = self.teams(self.generate([
+            ('goalkeeper_percentage_1', '50'), ('goalkeeper_percentage_4', '50'),
+            ('unavailable_for_3', '4'), ('unavailable_for_4', '4')]))
+        self.assertEqual([team['starters'][0]['id'] for team in teams], [4, 4, 1, 1])
+        html = self.generate([
+            ('goalkeeper_percentage_1', '100'), ('goalkeeper_percentage_4', '0'),
+            ('unavailable_for_1', '1')])
+        self.assertIn('targets cannot cover', html)
+        self.assertNotIn('\n    generatedTeams = [', html)
+
+    def test_rejects_invalid_percentages_and_preserves_inputs(self):
+        self.prepare()
+        for value in ('-1', '101', 'abc', '50.5', '70'):
+            html = self.generate([('goalkeeper_percentage_1', value), ('goalkeeper_percentage_4', '25')])
+            self.assertIn('Error:', html)
+            self.assertNotIn('\n    generatedTeams = [', html)
+        self.assertIn('value="70"', html)
+        html = self.generate([('goalkeeper_percentage_1', '75')])
+        self.assertIn('totalling 100%', html)
+
+    def test_invite_all_overrides_targets_and_default_rotates_equally(self):
+        self.prepare()
+        teams = self.teams(self.generate())
+        self.assertEqual(Counter(team['starters'][0]['id'] for team in teams), {1: 2, 4: 2})
+        teams = self.teams(self.generate([
+            ('goalkeeper_percentage_1', '100'), ('goalkeeper_percentage_4', '0'),
+            ('invite_all_for', '1')]))
+        self.assertEqual(len(teams[0]['starters'] + teams[0]['subs']), 16)
+        self.assertTrue(all(team['starters'][0]['id'] == 1 for team in teams[1:]))
+
+    def test_drafts_stay_hidden_until_published_and_can_be_hidden_again(self):
+        self.prepare(games=1)
+        formation = json.dumps({'formations': [{'players': [{'id': 1}], 'subs': [{'id': 4}]}]})
+        response = self.client.post('/formations/save', json={
+            'name': 'Secret draft name', 'data': formation, 'match_id': 1, 'private_team': True})
+        self.assertTrue(response.json['success'])
+        formation_id = response.json['id']
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute('SELECT team_published FROM matches WHERE id=1').fetchone()[0], 0)
+        for published in (False, True, False):
+            response = self.client.post('/matches/1/publication', data={'published': str(int(published))})
+            self.assertEqual(response.status_code, 302)
+            html = self.client.get('/public/overview').get_data(as_text=True)
+            self.assertEqual('Town 0' in html, published)
+            html = self.client.get('/public/next-match').get_data(as_text=True)
+            self.assertEqual('No team selected for this match' in html, not published)
+            self.assertNotIn('Secret draft name', html)
+            html = self.client.get('/public/players/2').get_data(as_text=True)
+            self.assertEqual('Town 0' in html.split('<h2 id="unselected-heading">')[0], published)
+        response = self.client.post('/formations/save', json={
+            'id': formation_id, 'name': 'Edited draft', 'data': formation, 'match_id': 1})
+        self.assertTrue(response.json['success'])
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute('SELECT team_published FROM matches WHERE id=1').fetchone()[0], 0)
+        html = self.client.get('/matches').get_data(as_text=True)
+        self.assertIn('Private draft', html)
+        self.assertIn('Publish team', html)
+
+    def test_custom_draft_linking_is_private_and_publication_requires_login(self):
+        self.prepare(games=1)
+        response = self.client.post('/formations/save', json={
+            'name': 'Draft', 'data': '{"formations": []}', 'private_team': True})
+        self.client.post(f"/matches/1/link-formation/{response.json['id']}")
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute('SELECT team_published FROM matches WHERE id=1').fetchone()[0], 0)
+        self.assertEqual(self.client.post('/matches/1/publication', data={'published': 'yes'}).status_code, 400)
+        self.assertEqual(self.client.post('/matches/999/publication', data={'published': '1'}).status_code, 404)
+        self.client.get('/logout')
+        for path in ('/team-generator', '/formations/1/load', '/matches/1/publication'):
+            response = self.client.post(path) if path.endswith('publication') else self.client.get(path)
+            self.assertEqual(response.status_code, 302)
+
+    def test_pitch_save_links_drafts_privately_without_unpublishing_existing_team(self):
+        self.prepare(games=1)
+        response = self.client.post('/formations/save', json={
+            'name': 'Draft', 'data': '{"formations": []}', 'private_team': True})
+        formation_id = response.json['id']
+        for published in (0, 1):
+            if published:
+                self.client.post('/matches/1/publication', data={'published': '1'})
+            response = self.client.post('/formations/save', json={
+                'id': formation_id, 'name': 'Edited', 'data': '{"formations": []}', 'match_id': 1})
+            self.assertTrue(response.json['success'])
+            with application.get_db() as conn:
+                self.assertEqual(conn.execute('SELECT team_published FROM matches WHERE id=1').fetchone()[0],
+                                 published)
+
+    def test_invalid_match_does_not_leave_orphaned_draft(self):
+        self.prepare(games=1)
+        response = self.client.post('/formations/save', json={
+            'name': 'Draft', 'data': '{"formations": []}', 'match_id': 999, 'private_team': True})
+        self.assertEqual(response.status_code, 404)
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM formations').fetchone()[0], 0)
+
+    def test_single_keeper_and_all_keeper_invite_fixture(self):
+        self.prepare(games=1)
+        with application.get_db() as conn:
+            conn.execute("UPDATE players SET position = 'MID' WHERE id=4")
+            conn.commit()
+        teams = self.teams(self.generate([('goalkeeper_percentage_1', '100')], games=1))
+        self.assertEqual(teams[0]['starters'][0]['id'], 1)
+        with application.get_db() as conn:
+            conn.execute("UPDATE players SET position = 'GK'")
+            conn.commit()
+        teams = self.teams(self.generate([('invite_all_for', '1')], games=1))
+        self.assertEqual(len(teams[0]['starters'] + teams[0]['subs']), 16)
+
+    def test_migration_preserves_existing_publication_and_drafts(self):
+        self.prepare(games=1)
+        with application.get_db() as conn:
+            conn.execute('DROP TABLE matches')
+            conn.execute('''
+                CREATE TABLE matches (
+                    id INTEGER PRIMARY KEY, match_date TEXT NOT NULL,
+                    opponent TEXT NOT NULL, location TEXT, formation_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.execute('INSERT INTO matches (id, match_date, opponent) VALUES (1, ?, ?)',
+                         (self.today.isoformat(), 'Legacy match'))
+            conn.commit()
+        application.init_db()
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute('SELECT team_published FROM matches WHERE id=1').fetchone()[0], 1)
+            conn.execute('UPDATE matches SET team_published=0 WHERE id=1')
+            conn.commit()
+        application.init_db()
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute('SELECT team_published FROM matches WHERE id=1').fetchone()[0], 0)
+
+
+if __name__ == '__main__':
+    unittest.main()

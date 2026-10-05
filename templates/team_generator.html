@@ -617,6 +617,19 @@
             </div>
 
             <input type="hidden" id="num_games" name="num_games" value="{{ num_games|default(4) }}">
+            <fieldset class="game-selection-group">
+                <legend>Goalkeeper game targets</legend>
+                <p class="selection-help">Set a percentage for each keeper, totalling 100%, or leave all blank for equal rotation. Each team gets one keeper, independently of outfield rest games. Targets are rounded to whole games; availability must allow them. "Invite all" fixtures include every available keeper and are excluded from these targets.</p>
+                {% for player in players if player.position == 'GK' %}
+                <div class="form-group">
+                    <label for="goalkeeper-percentage-{{ player.id }}">{{ player.name }} - percentage of games</label>
+                    <input type="number" id="goalkeeper-percentage-{{ player.id }}"
+                           name="goalkeeper_percentage_{{ player.id }}" min="0" max="100" step="1"
+                           placeholder="Equal rotation"
+                           value="{{ (goalkeeper_percentages|default({})).get(player.id|string, request.form.get('goalkeeper_percentage_' ~ player.id, '')) }}">
+                </div>
+                {% endfor %}
+            </fieldset>
             <div class="generator-options">
                 {% if not matches %}
                 <div class="form-group">
@@ -649,7 +662,7 @@
             </div>
         </form>
         <p style="font-size: 12px; color: #756d66; margin-top: 10px;">
-            ℹ️ Teams include at least 1 goalkeeper. Unavailable players are excluded from that fixture, while available players are distributed as evenly as possible.
+            ℹ️ Generated teams are private. Save a draft, then publish it from Match Schedule when ready. Unavailable players are excluded and outfield players rotate independently of keepers.
         </p>
     </div>
 
@@ -670,7 +683,7 @@
                 <div class="stat-value">{{ stats.team_size }}</div>
             </div>
             <div class="stat-item">
-                <div class="stat-label">Max Eligible Games Missed</div>
+                <div class="stat-label">Max Outfield Eligible Games Missed</div>
                 <div class="stat-value">{{ stats.max_games_missed }}</div>
             </div>
             {% if stats.unavailable_count %}
@@ -686,6 +699,9 @@
             </div>
             {% endif %}
         </div>
+        {% for keeper in stats.goalkeepers %}
+        <p>{{ keeper.name }}: {{ keeper.target }}% target; selected for {{ keeper.games }} of {{ keeper.total }} games (including invite-all fixtures).</p>
+        {% endfor %}
     </div>
 
     {% for team in teams %}
@@ -697,7 +713,7 @@
                     {{ team.starters|length }} starters + {{ team.subs|length }} subs
                 </div>
                 <button onclick="saveTeamAsMatch({{ loop.index0 }})" class="btn" style="background: #d4af37; color: #1e1f28; padding: 8px 16px; font-size: 13px;">
-                    💾 Save as Match
+                    💾 Save private draft
                 </button>
             </div>
         </div>
@@ -913,7 +929,8 @@ function showMatchSelectionModal(teamIndex, team) {
     
     let modalContent = `
         <div style="background: white; padding: 30px; border-radius: 0; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
-            <h3 style="margin-bottom: 20px; color: #1e1f28;">Save Team as Match Formation</h3>
+            <h3 style="margin-bottom: 20px; color: #1e1f28;">Save Private Team Draft</h3>
+            <p>This team stays private until you publish it from Match Schedule.</p>
     `;
     
     if (availableMatches && availableMatches.length > 0) {
@@ -1031,26 +1048,18 @@ async function confirmSaveTeam(teamIndex, buttonElement) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 name: matchName.trim(),
-                data: JSON.stringify(formationData)
+                data: JSON.stringify(formationData),
+                match_id: selectedMatchId || null,
+                private_team: true
             })
         });
 
         const result = await response.json();
         if (result.success) {
-            // If a match was selected, link the formation to it
             if (selectedMatchId) {
-                try {
-                    await fetch(`/matches/${selectedMatchId}/link-formation/${result.id}`, {
-                        method: 'POST'
-                    });
-                    
-                    // Remove the saved match from the availableMatches array
-                    const matchIndex = availableMatches.findIndex(m => m.id == selectedMatchId);
-                    if (matchIndex > -1) {
-                        availableMatches.splice(matchIndex, 1);
-                    }
-                } catch (linkError) {
-                    console.error('Error linking formation to match:', linkError);
+                const matchIndex = availableMatches.findIndex(m => m.id == selectedMatchId);
+                if (matchIndex > -1) {
+                    availableMatches.splice(matchIndex, 1);
                 }
             }
             
@@ -1065,7 +1074,7 @@ async function confirmSaveTeam(teamIndex, buttonElement) {
                     const savedBadge = document.createElement('span');
                     savedBadge.className = 'status-badge';
                     savedBadge.style.cssText = 'background: #d4af37; color: #1e1f28; padding: 8px 16px; font-size: 13px;';
-                    savedBadge.textContent = '✅ Saved';
+                    savedBadge.textContent = '✅ Private draft saved';
                     saveButton.parentNode.appendChild(savedBadge);
                 }
             }
