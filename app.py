@@ -244,7 +244,10 @@ def spreadsheet_text(value):
 @app.route('/players')
 @login_required
 def players():
+    import json
+
     today = datetime.now().date().isoformat()
+    _, season_start, season_end = current_season_bounds()
     with get_db() as conn:
         players_list = conn.execute('''
             SELECT * FROM players
@@ -254,11 +257,61 @@ def players():
             SELECT player_id, unavailable_date FROM player_unavailability
             WHERE unavailable_date >= ? ORDER BY unavailable_date
         ''', (today,)).fetchall()
+        squad_matches = conn.execute('''
+            SELECT m.match_date, f.data AS formation_data
+            FROM matches m
+            JOIN formations f ON f.id = m.formation_id
+            WHERE m.match_date >= ? AND m.match_date >= ? AND m.match_date < ?
+            ORDER BY m.match_date, m.id
+        ''', (today, season_start, season_end)).fetchall()
+
     unavailable_dates = {}
     for row in saved_rows:
         unavailable_dates.setdefault(row['player_id'], []).append(row['unavailable_date'])
+    active_players = [player for player in players_list if player['status'] == 'active']
+    player_game_summary = {
+        player['id']: {
+            'id': player['id'],
+            'name': player['name'],
+            'in_squad': 0,
+            'rested': 0,
+            'unavailable': 0,
+        }
+        for player in active_players
+    }
+    active_player_ids = {str(player['id']) for player in active_players}
+    unavailable_by_date = {}
+    for row in saved_rows:
+        unavailable_by_date.setdefault(row['unavailable_date'], set()).add(str(row['player_id']))
+
+    squad_game_count = 0
+    for match in squad_matches:
+        unavailable_ids = unavailable_by_date.get(match['match_date'], set()) & active_player_ids
+        formation_data = json.loads(match['formation_data'])
+        squad_ids = {
+            str(player['id'])
+            for formation in formation_data.get('formations', [])
+            for player in formation.get('players', []) + formation.get('subs', [])
+        }
+        if not squad_ids:
+            continue
+        squad_game_count += 1
+        squad_ids &= active_player_ids
+        for player_id in active_player_ids:
+            summary = player_game_summary[int(player_id)]
+            if player_id in unavailable_ids:
+                summary['unavailable'] += 1
+            elif player_id in squad_ids:
+                summary['in_squad'] += 1
+            else:
+                summary['rested'] += 1
+
     return render_template('players.html', players=players_list,
                            unavailable_dates=unavailable_dates,
+                           player_game_summary=sorted(
+                               player_game_summary.values(), key=lambda player: player['name'].casefold()
+                           ),
+                           squad_game_count=squad_game_count,
                            error=request.args.get('error'), version=VERSION)
 
 
@@ -2152,17 +2205,6 @@ def generate_teams():
          'total': num_games}
         for keeper in goalkeepers
     ]
-    stats['players'] = [
-        {
-            'id': player['id'],
-            'name': player['name'],
-            'in_squad': player_game_count[player['id']],
-            'rested': eligible_game_counts[player['id']] - player_game_count[player['id']],
-            'unavailable': num_games - eligible_game_counts[player['id']],
-        }
-        for player in sorted(players, key=lambda player: player['name'].casefold())
-    ]
-
     generator_settings = [
         ('generator_team_size', str(team_size)),
         ('generator_keeper_percentages', json.dumps(

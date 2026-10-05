@@ -67,63 +67,6 @@
         margin-top: 20px;
     }
 
-    .player-game-summary {
-        margin-top: 18px;
-    }
-
-    .player-game-summary h4 {
-        margin-bottom: 6px;
-        color: #1e1f28;
-        font-size: 15px;
-    }
-
-    .player-game-summary p {
-        margin-bottom: 10px;
-        color: #756d66;
-        font-size: 12px;
-    }
-
-    .player-game-summary-wrap {
-        max-height: 360px;
-        overflow: auto;
-        border: 1px solid #d2c5b6;
-        border-radius: 10px;
-        background: white;
-    }
-
-    .player-game-summary table {
-        min-width: 440px;
-        table-layout: fixed;
-    }
-
-    .player-game-summary th {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        padding: 9px 10px;
-        background: #2d3443;
-        color: #f7efe5;
-        font-size: 11px;
-    }
-
-    .player-game-summary td {
-        padding: 8px 10px;
-        border-bottom: 1px solid #efe5d8;
-        color: #1e1f28;
-        font-size: 12px;
-    }
-
-    .player-game-summary th:not(:first-child),
-    .player-game-summary td:not(:first-child) {
-        width: 110px;
-        text-align: center;
-        font-variant-numeric: tabular-nums;
-    }
-
-    .player-game-summary tbody tr:last-child td {
-        border-bottom: 0;
-    }
-
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -781,32 +724,6 @@
         {% for keeper in stats.goalkeepers %}
         <p>{{ keeper.name }}: {{ keeper.target }}% in-goal target; {{ keeper.in_goal }} in goal, {{ keeper.games - keeper.in_goal }} outfield, {{ keeper.resting }} resting ({{ keeper.games }} of {{ keeper.total }} games selected, including invite-all fixtures).</p>
         {% endfor %}
-        <section class="player-game-summary" aria-labelledby="player-game-summary-title">
-            <h4 id="player-game-summary-title">Player game breakdown</h4>
-            <p>Counts are across the {{ stats.num_games }} selected games. Unavailable games are not counted as rests.</p>
-            <div class="player-game-summary-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th scope="col">Player</th>
-                            <th scope="col">In squad</th>
-                            <th scope="col">Rested</th>
-                            <th scope="col">Not available</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for player in stats.players %}
-                        <tr data-player-id="{{ player.id }}">
-                            <td>{{ player.name }}</td>
-                            <td>{{ player.in_squad }}</td>
-                            <td>{{ player.rested }}</td>
-                            <td>{{ player.unavailable }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </section>
     </div>
 
     {% for team in teams %}
