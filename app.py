@@ -1407,6 +1407,24 @@ def set_team_publication(match_id):
         conn.commit()
     return redirect(url_for('matches'))
 
+@app.route('/team-generator/publish-all', methods=['POST'])
+@login_required
+def publish_all_teams():
+    with get_db() as conn:
+        cursor = conn.execute('''
+            UPDATE matches SET team_published = 1
+            WHERE team_published = 0
+            AND EXISTS (SELECT 1 FROM formations WHERE formations.id = matches.formation_id)
+        ''')
+        published_count = cursor.rowcount
+        conn.commit()
+    message = (f'Made {published_count} saved team(s) public.'
+               if published_count else 'No saved private teams to publish.')
+    params = {'success': message}
+    if request.form.get('regenerate') == '1':
+        params['regenerate'] = '1'
+    return redirect(url_for('team_generator', **params))
+
 def current_season_bounds(today=None):
     today = today or datetime.now().date()
     year = today.year if today.month >= 9 else today.year - 1
@@ -1455,6 +1473,7 @@ def team_generator():
         team_size=get_setting('generator_team_size', 12),
         goalkeeper_percentages=json.loads(get_setting('generator_keeper_percentages', '{}')),
         regenerate=regenerate,
+        success=request.args.get('success'),
         num_games=len(matches) if matches else 4,
         version=VERSION
     )
