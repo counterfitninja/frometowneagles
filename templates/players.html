@@ -3,6 +3,7 @@
 {% block title %}Players - Under-12 Football Manager{% endblock %}
 
 {% block content %}
+{% set parent_confirmations = availability_confirmations() %}
 <div class="card">
     <h2>👥 Player Management</h2>
     <p style="color: #756d66; margin: -8px 0 20px;">Retire a player to keep their historic stats while removing them from future formations, result entry, and team generation.</p>
@@ -22,6 +23,7 @@
                         <th scope="col" style="position: sticky; top: 0; z-index: 1; width: 110px; text-align: center;">In squad</th>
                         <th scope="col" style="position: sticky; top: 0; z-index: 1; width: 110px; text-align: center;">Rested</th>
                         <th scope="col" style="position: sticky; top: 0; z-index: 1; width: 130px; text-align: center;">Not available</th>
+                        <th scope="col" style="position: sticky; top: 0; z-index: 1; width: 140px; text-align: center;">Holiday confirmed</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -31,6 +33,13 @@
                         <td style="text-align: center; font-variant-numeric: tabular-nums;">{{ player.in_squad }}</td>
                         <td style="text-align: center; font-variant-numeric: tabular-nums;">{{ player.rested }}</td>
                         <td style="text-align: center; font-variant-numeric: tabular-nums;">{{ player.unavailable }}</td>
+                        <td style="text-align: center;">
+                            {% if player.id in parent_confirmations %}
+                            <span style="color: #39583c; font-size: 18px; font-weight: bold;" role="img" aria-label="Parent confirmed availability" title="Confirmed {{ parent_confirmations[player.id][:10] | ukdate }}">✓</span>
+                            {% else %}
+                            <span aria-label="Not confirmed" title="Awaiting parent confirmation" style="color: #756d66;">—</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

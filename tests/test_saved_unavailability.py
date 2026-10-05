@@ -268,6 +268,17 @@ class SavedUnavailabilityTests(unittest.TestCase):
         self.assertIn('Player game breakdown', html)
         self.assertIn('Upcoming games this season with a saved squad (0)', html)
 
+    def test_players_page_marks_parent_confirmed_availability(self):
+        self.login()
+        self.public_update('confirm', player_id=1, availability_complete='yes')
+
+        html = self.client.get('/players').get_data(as_text=True)
+
+        self.assertIn('>Holiday confirmed</th>', html)
+        self.assertIn('aria-label="Parent confirmed availability"', html)
+        self.assertIn('title="Confirmed ' + self.today.strftime('%d/%m/%Y') + '"', html)
+        self.assertEqual(html.count('aria-label="Parent confirmed availability"'), 1)
+
     def test_routes_require_login(self):
         self.assertEqual(self.client.get('/players/unavailability/export').status_code, 302)
         self.assertEqual(self.client.post('/team-generator/save-availability').status_code, 302)
