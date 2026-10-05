@@ -35,6 +35,9 @@ under its **More** menu.
 In **Generate teams**, set each goalkeeper's target percentage (totalling 100%),
 or leave all targets blank for equal rotation. Percentages apply to games **in goal**,
 not total team selections, and are rounded to whole games across normal fixtures.
+Keeper fixtures are randomised rather than allocated in consecutive blocks,
+while respecting availability and the rounded targets. Random draws can still
+produce consecutive games for the same keeper.
 Keepers not assigned in goal are eligible for outfield places and share the same
 rest-game balancing as all other players. Both in-goal and outfield appearances
 count as playing; mandatory in-goal assignments take priority if they exceed a

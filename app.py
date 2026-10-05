@@ -1832,9 +1832,11 @@ def generate_teams():
         keeper_targets[pid] += 1
 
     # Match quota slots to eligible fixtures, reassigning earlier choices when needed.
+    keeper_fixture_order = normal_games[:]
+    random.shuffle(keeper_fixture_order)
     assigned_keepers = {}
     def assign_keeper(keeper, visited):
-        for index in normal_games:
+        for index in keeper_fixture_order:
             if index in visited or keeper not in game_plans[index]['eligible_gks']:
                 continue
             visited.add(index)
