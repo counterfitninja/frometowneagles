@@ -77,7 +77,12 @@ In **More > Generate teams**, select fixtures and tick the players who cannot
 attend. All fixtures needing teams are selected by default, with no 20-game limit
 for scheduled fixtures. Rest games are calculated automatically across the
 selected fixtures using squad size, players per game and availability; unavailable
-games do not count as rest games. Use **Generate again** to replace existing teams
+games do not count as rest games.
+The generator also tries to avoid resting a player for two consecutive selected
+fixtures, keeping total appearances balanced and respecting availability and
+goalkeeper targets. This is a best-effort preference, not a guarantee; unavailable
+games and invite-all appearances break a rest streak.
+Use **Generate again** to replace existing teams
 for every upcoming fixture in the current season. The number of teams comes
 from the selected fixtures, not a manual game count. Add fixtures in
 **Match Schedule** before generating teams.
