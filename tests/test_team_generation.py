@@ -52,35 +52,6 @@ class TeamGenerationTests(unittest.TestCase):
         self.assertEqual(sum(counts.values()), 24 * 9)
         self.assertLessEqual(max(counts.values()) - min(counts.values()), 1)
 
-    def test_player_game_summary_separates_squad_rest_and_unavailability(self):
-        self.prepare()
-        html = self.client.post('/team-generator/generate', data=MultiDict(
-            [('team_size', '9'), ('unavailable_for_1', '2')] +
-            [('match_ids', str(match_id)) for match_id in range(1, 5)]
-        )).get_data(as_text=True)
-        teams = self.teams(html)
-
-        summary_rows = {
-            int(player_id): tuple(map(int, counts))
-            for player_id, *counts in re.findall(
-                r'<tr data-player-id="(\d+)">\s*<td>.*?</td>'
-                r'\s*<td>(\d+)</td>\s*<td>(\d+)</td>\s*<td>(\d+)</td>',
-                html,
-                re.DOTALL,
-            )
-        }
-        self.assertIn('Player game breakdown', html)
-        self.assertEqual(summary_rows[2][2], 1)
-        squad_counts = Counter(
-            player['id'] for team in teams for player in team['starters'] + team['subs']
-        )
-        rested_counts = Counter(player['id'] for team in teams for player in team['not_playing'])
-        unavailable_counts = Counter(player['id'] for team in teams for player in team['unavailable'])
-        for player_id, counts in summary_rows.items():
-            self.assertEqual(counts, (
-                squad_counts[player_id], rested_counts[player_id], unavailable_counts[player_id]
-            ))
-
     def test_no_selected_fixtures_does_not_generate_unscheduled_teams(self):
         self.prepare()
         response = self.client.post('/team-generator/generate', data={'team_size': '9'})

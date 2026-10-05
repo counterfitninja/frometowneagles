@@ -6,6 +6,40 @@
 <div class="card">
     <h2>👥 Player Management</h2>
     <p style="color: #756d66; margin: -8px 0 20px;">Retire a player to keep their historic stats while removing them from future formations, result entry, and team generation.</p>
+
+    <section aria-labelledby="player-game-summary-title" style="margin-bottom: 28px;">
+        <h3 id="player-game-summary-title" style="margin-bottom: 6px;">Player game breakdown</h3>
+        <p style="color: #756d66; margin-bottom: 12px;">
+            Upcoming games this season with a saved squad ({{ squad_game_count }}).
+            Games without a saved squad are not counted; unavailable games are not counted as rests.
+        </p>
+        {% if player_game_summary %}
+        <div style="max-height: 360px; overflow: auto; border: 1px solid #d2c5b6; border-radius: 10px; background: white;">
+            <table style="min-width: 440px; table-layout: fixed;">
+                <thead>
+                    <tr>
+                        <th scope="col" style="position: sticky; top: 0; z-index: 1;">Player</th>
+                        <th scope="col" style="position: sticky; top: 0; z-index: 1; width: 110px; text-align: center;">In squad</th>
+                        <th scope="col" style="position: sticky; top: 0; z-index: 1; width: 110px; text-align: center;">Rested</th>
+                        <th scope="col" style="position: sticky; top: 0; z-index: 1; width: 130px; text-align: center;">Not available</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for player in player_game_summary %}
+                    <tr data-player-id="{{ player.id }}">
+                        <td><strong>{{ player.name }}</strong></td>
+                        <td style="text-align: center; font-variant-numeric: tabular-nums;">{{ player.in_squad }}</td>
+                        <td style="text-align: center; font-variant-numeric: tabular-nums;">{{ player.rested }}</td>
+                        <td style="text-align: center; font-variant-numeric: tabular-nums;">{{ player.unavailable }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: #756d66;">Add active players to see their game counts.</p>
+        {% endif %}
+    </section>
     
     <form method="POST" action="/players/add" style="background: #f7efe5; padding: 20px; border-radius: 0; margin-bottom: 30px;">
         <h3 style="margin-bottom: 15px;">Add New Player</h3>

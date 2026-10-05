@@ -1,4 +1,5 @@
 import csv
+import json
 from datetime import timedelta
 from io import StringIO
 import re
@@ -25,6 +26,22 @@ class SavedUnavailabilityTests(unittest.TestCase):
                 ((self.today + timedelta(days=days)).isoformat(), opponent, 'Home', formation_id))
             conn.commit()
             return cursor.lastrowid
+
+    def fixture_with_squad(self, days, player_ids, opponent='Town'):
+        with application.get_db() as conn:
+            cursor = conn.execute(
+                'INSERT INTO formations (name, data) VALUES (?, ?)',
+                (opponent, json.dumps({'formations': [{
+                    'players': [{'id': player_id} for player_id in player_ids],
+                    'subs': [],
+                }]}))
+            )
+            match_id = conn.execute(
+                'INSERT INTO matches (match_date, opponent, location, formation_id) VALUES (?, ?, ?, ?)',
+                ((self.today + timedelta(days=days)).isoformat(), opponent, 'Home', cursor.lastrowid)
+            ).lastrowid
+            conn.commit()
+            return match_id
 
     def saved(self):
         with application.get_db() as conn:
@@ -86,6 +103,38 @@ class SavedUnavailabilityTests(unittest.TestCase):
         self.assertEqual(len(list(csv.DictReader(StringIO(everything)))), 2)
         self.client.post(f'/players/1/unavailability/{future}/delete')
         self.assertEqual(self.saved(), [(1, past)])
+
+    def test_players_page_always_shows_saved_squad_game_breakdown(self):
+        self.login()
+        self.fixture_with_squad(1, [1, 2], 'First team')
+        first_date = (self.today + timedelta(days=1)).isoformat()
+        self.client.post('/players/3/unavailability', data={'unavailable_date': first_date})
+        self.fixture_with_squad(2, [2, 3], 'Second team')
+        self.fixture(3, 'Team not saved')
+
+        html = self.client.get('/players').get_data(as_text=True)
+        summary_rows = {
+            int(player_id): tuple(map(int, counts))
+            for player_id, *counts in re.findall(
+                r'<tr data-player-id="(\d+)">\s*<td>.*?</td>'
+                r'\s*<td[^>]*>(\d+)</td>\s*<td[^>]*>(\d+)</td>\s*<td[^>]*>(\d+)</td>',
+                html,
+                re.DOTALL,
+            )
+        }
+        self.assertIn('Player game breakdown', html)
+        self.assertIn('Upcoming games this season with a saved squad (2)', html)
+        self.assertEqual(summary_rows, {
+            1: (1, 1, 0),
+            2: (2, 0, 0),
+            3: (1, 0, 1),
+        })
+
+    def test_players_page_shows_breakdown_before_any_squad_is_saved(self):
+        self.login()
+        html = self.client.get('/players').get_data(as_text=True)
+        self.assertIn('Player game breakdown', html)
+        self.assertIn('Upcoming games this season with a saved squad (0)', html)
 
     def test_routes_require_login(self):
         self.assertEqual(self.client.get('/players/unavailability/export').status_code, 302)
