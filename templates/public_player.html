@@ -1,12 +1,54 @@
 {% extends 'public_overview.html' %}
 
-{% block page_title %}{{ player.name }} - Not Playing{% endblock %}
+{% block page_title %}{{ player.name }} - Availability{% endblock %}
 {% block heading %}{{ player.name }}{% endblock %}
 {% block extra_navigation %}
 <a href="{{ url_for('public_overview') }}" class="nav-btn">All Matches</a>
 {% endblock %}
 
 {% block content %}
+<section class="card player-schedule" id="availability" aria-labelledby="availability-heading">
+    <h2 id="availability-heading">Your unavailable dates</h2>
+    <p>Add every date {{ player.name }} cannot attend, even if a fixture has not been added yet. These dates go straight to the manager's team-generation availability screen. They do not change teams already selected.</p>
+    {% if error %}<p class="availability-message availability-error" role="alert">{{ error }}</p>{% endif %}
+    {% if success %}<p class="availability-message" role="status">{{ success }}</p>{% endif %}
+    {% for date in unavailable_dates %}
+    <div class="player-fixture">
+        <time datetime="{{ date }}">{{ date | ukdate }}</time>
+        <span>Unavailable</span>
+        <form method="POST" action="{{ url_for('public_player', player_id=player.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ session.public_availability_token }}">
+            <input type="hidden" name="action" value="remove">
+            <input type="hidden" name="unavailable_date" value="{{ date }}">
+            <button class="nav-btn" type="submit" aria-label="Remove unavailable date {{ date | ukdate }}">Remove</button>
+        </form>
+    </div>
+    {% else %}
+    <p class="schedule-empty">No upcoming unavailable dates saved. If you can attend every date, confirm below.</p>
+    {% endfor %}
+    <form class="availability-date-form" method="POST" action="{{ url_for('public_player', player_id=player.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ session.public_availability_token }}">
+        <input type="hidden" name="action" value="add">
+        <div>
+            <label for="unavailable-date">Date you cannot attend</label>
+            <input type="date" id="unavailable-date" name="unavailable_date" min="{{ today }}" required>
+        </div>
+        <button type="submit" class="nav-btn">Add unavailable date</button>
+    </form>
+    <form class="availability-confirmation" method="POST" action="{{ url_for('public_player', player_id=player.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ session.public_availability_token }}">
+        <input type="hidden" name="action" value="confirm">
+        <input type="hidden" name="availability_revision" value="{{ availability_revision }}">
+        <p class="availability-confirmation-status">{{ 'Availability confirmed' if availability_confirmed else 'Confirmation needed' }} for the {{ season_label }} season.</p>
+        <label class="availability-confirm-label" for="availability-complete">
+            <input type="checkbox" id="availability-complete" name="availability_complete" value="yes" required {% if availability_confirmed %}checked{% endif %}>
+            <span>I confirm I have added all dates {{ player.name }} is unavailable for the {{ season_label }} season.</span>
+        </label>
+        <p>If dates change, update them here and confirm again.</p>
+        <button type="submit" class="nav-btn login">Confirm availability</button>
+    </form>
+</section>
+
 <section class="card player-schedule" aria-labelledby="not-playing-heading">
     <h2 id="not-playing-heading">Not Playing</h2>
     <p>Upcoming fixtures where you are not in the selected team.</p>

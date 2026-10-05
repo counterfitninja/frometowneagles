@@ -5,6 +5,7 @@ import os
 from functools import wraps
 from contextlib import nullcontext
 import hashlib
+import secrets
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'change-this-in-production')
@@ -17,7 +18,7 @@ def add_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     if request.path == '/static/sw.js':
         response.headers['Service-Worker-Allowed'] = '/'
-    if request.path.startswith('/team-generator'):
+    if request.path.startswith(('/team-generator', '/public/players/')):
         response.headers.setdefault('Cache-Control', 'private, no-store')
     return response
 
@@ -115,6 +116,14 @@ def init_db():
                 unavailable_date TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (player_id, unavailable_date),
+                FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS player_availability_confirmations (
+                player_id INTEGER PRIMARY KEY,
+                season_start TEXT NOT NULL,
+                confirmed_at TEXT NOT NULL,
                 FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
             )
         ''')
@@ -342,6 +351,14 @@ def save_unavailability(matches, unavailable_by_match, active_player_ids, connec
     active = sorted(int(pid) for pid in active_player_ids)
     with nullcontext(connection) if connection is not None else get_db() as conn:
         for match_date, player_ids in by_date.items():
+            existing_ids = {str(row['player_id']) for row in conn.execute(
+                'SELECT player_id FROM player_unavailability WHERE unavailable_date = ?',
+                (match_date,)
+            ).fetchall()} & active_player_ids
+            if match_date >= datetime.now().date().isoformat():
+                for player_id in existing_ids ^ player_ids:
+                    conn.execute('DELETE FROM player_availability_confirmations WHERE player_id = ?',
+                                 (int(player_id),))
             conn.execute(
                 'DELETE FROM player_unavailability WHERE unavailable_date = ? AND player_id IN (%s)'
                 % ','.join('?' * len(active)), (match_date, *active)
@@ -352,6 +369,33 @@ def save_unavailability(matches, unavailable_by_match, active_player_ids, connec
             )
         if connection is None:
             conn.commit()
+
+
+def change_player_unavailability(conn, player_id, unavailable_date, remove=False):
+    if remove:
+        cursor = conn.execute(
+            'DELETE FROM player_unavailability WHERE player_id = ? AND unavailable_date = ?',
+            (player_id, unavailable_date))
+    else:
+        cursor = conn.execute(
+            'INSERT OR IGNORE INTO player_unavailability (player_id, unavailable_date) VALUES (?, ?)',
+            (player_id, unavailable_date))
+    if cursor.rowcount and unavailable_date >= datetime.now().date().isoformat():
+        conn.execute('DELETE FROM player_availability_confirmations WHERE player_id = ?', (player_id,))
+
+
+@app.template_global()
+def availability_confirmations():
+    _, season_start, _ = current_season_bounds()
+    with get_db() as conn:
+        return {row['player_id']: row['confirmed_at'] for row in conn.execute(
+            'SELECT c.player_id, c.confirmed_at FROM player_availability_confirmations c '
+            "JOIN players p ON p.id = c.player_id WHERE c.season_start = ? AND p.status = 'active'",
+            (season_start,)).fetchall()}
+
+
+def player_availability_revision(dates):
+    return hashlib.sha256('\n'.join(dates).encode()).hexdigest()
 
 
 @app.route('/players/<int:player_id>/unavailability', methods=['POST'])
@@ -365,8 +409,7 @@ def add_player_unavailability(player_id):
     with get_db() as conn:
         if conn.execute('SELECT 1 FROM players WHERE id = ?', (player_id,)).fetchone() is None:
             abort(404)
-        conn.execute('INSERT OR IGNORE INTO player_unavailability (player_id, unavailable_date) VALUES (?, ?)',
-                     (player_id, unavailable_date))
+        change_player_unavailability(conn, player_id, unavailable_date)
         conn.commit()
     return redirect(url_for('players') + f'#player-{player_id}')
 
@@ -375,8 +418,7 @@ def add_player_unavailability(player_id):
 @login_required
 def delete_player_unavailability(player_id, unavailable_date):
     with get_db() as conn:
-        conn.execute('DELETE FROM player_unavailability WHERE player_id = ? AND unavailable_date = ?',
-                     (player_id, unavailable_date))
+        change_player_unavailability(conn, player_id, unavailable_date, remove=True)
         conn.commit()
     return redirect(url_for('players') + f'#player-{player_id}')
 
@@ -548,6 +590,7 @@ def add_player():
 def delete_player(player_id):
     with get_db() as conn:
         conn.execute('DELETE FROM player_unavailability WHERE player_id = ?', (player_id,))
+        conn.execute('DELETE FROM player_availability_confirmations WHERE player_id = ?', (player_id,))
         conn.execute('DELETE FROM players WHERE id = ?', (player_id,))
         conn.commit()
     
@@ -1248,14 +1291,60 @@ def public_match_team(raw_match, all_players):
     return match
 
 
-@app.route('/public/players/<int:player_id>')
+@app.route('/public/players/<int:player_id>', methods=['GET', 'POST'])
 def public_player(player_id):
-    """Show upcoming non-playing dates without requiring a manager login."""
+    """Let parents review and confirm availability alongside public team selections."""
     today = datetime.now().strftime('%Y-%m-%d')
+    _, season_start, season_end = current_season_bounds()
     with get_db() as conn:
         player = conn.execute("SELECT id, name FROM players WHERE id = ? AND status = 'active'", (player_id,)).fetchone()
         if player is None:
             abort(404)
+        if request.method == 'POST':
+            token = session.get('public_availability_token')
+            if not token or not secrets.compare_digest(token, request.form.get('csrf_token', '')):
+                abort(400, description='This form has expired. Reload the player page and try again.')
+            action = request.form.get('action')
+            if action in ('add', 'remove'):
+                raw_date = request.form.get('unavailable_date', '').strip()
+                try:
+                    unavailable_date = datetime.strptime(raw_date, '%Y-%m-%d').date().isoformat()
+                except ValueError:
+                    return redirect(url_for('public_player', player_id=player_id, error='Choose a valid date.'))
+                if unavailable_date != raw_date or unavailable_date < today:
+                    return redirect(url_for('public_player', player_id=player_id,
+                                            error='Choose today or a future date.'))
+                change_player_unavailability(conn, player_id, unavailable_date, remove=action == 'remove')
+                message = 'Unavailable date removed.' if action == 'remove' else 'Unavailable date saved.'
+            elif action == 'confirm':
+                if request.form.get('availability_complete') != 'yes':
+                    return redirect(url_for('public_player', player_id=player_id,
+                                            error='Tick the checkbox to confirm you have added all unavailable dates.'))
+                # Lock the reviewed date set until its confirmation has been saved.
+                conn.execute('BEGIN IMMEDIATE')
+                dates = [row['unavailable_date'] for row in conn.execute(
+                    'SELECT unavailable_date FROM player_unavailability '
+                    'WHERE player_id = ? AND unavailable_date >= ? ORDER BY unavailable_date',
+                    (player_id, today)).fetchall()]
+                if request.form.get('availability_revision') != player_availability_revision(dates):
+                    return redirect(url_for('public_player', player_id=player_id,
+                                            error='The unavailable dates changed. Review them before confirming again.'))
+                conn.execute(
+                    'INSERT OR REPLACE INTO player_availability_confirmations '
+                    '(player_id, season_start, confirmed_at) VALUES (?, ?, ?)',
+                    (player_id, season_start, datetime.now(timezone.utc).isoformat()))
+                message = 'Availability confirmed.'
+            else:
+                abort(400, description='Choose a valid availability action.')
+            conn.commit()
+            return redirect(url_for('public_player', player_id=player_id, success=message) + '#availability')
+        saved_dates = [row['unavailable_date'] for row in conn.execute(
+            'SELECT unavailable_date FROM player_unavailability '
+            'WHERE player_id = ? AND unavailable_date >= ? ORDER BY unavailable_date',
+            (player_id, today)).fetchall()]
+        confirmation = conn.execute(
+            'SELECT confirmed_at FROM player_availability_confirmations WHERE player_id = ? AND season_start = ?',
+            (player_id, season_start)).fetchone()
         all_players = conn.execute("SELECT * FROM players WHERE status = 'active' ORDER BY name").fetchall()
         upcoming = conn.execute('''
             SELECT m.match_date, m.opponent, m.location, f.data AS formation_data
@@ -1272,9 +1361,15 @@ def public_player(player_id):
             unselected.append(match)
         elif any(p['id'] == player_id for p in match['not_playing']):
             not_playing.append(match)
+    if 'public_availability_token' not in session:
+        session['public_availability_token'] = secrets.token_hex(32)
     return render_template(
         'public_player.html', player=player, not_playing=not_playing,
-        unselected=unselected, version=VERSION
+        unselected=unselected, version=VERSION, unavailable_dates=saved_dates,
+        availability_confirmed=confirmation is not None,
+        availability_revision=player_availability_revision(saved_dates),
+        season_label=f'{season_start[:4]}/{int(season_end[:4]) % 100:02d}', today=today,
+        error=request.args.get('error'), success=request.args.get('success')
     )
 
 

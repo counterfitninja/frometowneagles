@@ -1,5 +1,5 @@
 // Service Worker for offline functionality
-const CACHE_NAME = 'football-manager-live-20261005';
+const CACHE_NAME = 'football-manager-availability-20261005';
 const urlsToCache = [
     '/static/manifest.json',
     '/static/design-language.css?v=20260818-rounded',
@@ -39,6 +39,7 @@ self.addEventListener('fetch', (event) => {
 
     const path = new URL(event.request.url).pathname;
     if (path.startsWith('/api/') || path.startsWith('/team-generator') ||
+        path.startsWith('/public/players/') ||
         path === '/login' || path === '/logout') return;
 
     event.respondWith((async () => {

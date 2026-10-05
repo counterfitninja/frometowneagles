@@ -104,6 +104,21 @@ They pre-fill the generator for any fixture on the same date. Manage them on the
 use **Export upcoming (CSV)** or **Export all, including past (CSV)** to download
 them, even when no fixtures are left without a squad.
 
+Parents can click a player name on either public page to add and remove upcoming
+unavailable dates without a manager login. This uses the same saved dates as the
+Players page and pre-fills team-generation availability, including fixtures added
+later on those dates. Dates when a player cannot attend are separate from published
+non-playing selections; updating availability does not alter an already selected team.
+
+After entering all dates, parents must tick **I confirm I have added all dates**
+and choose **Confirm availability**, even if there are no unavailable dates.
+The generator's **Parent availability confirmations** panel shows who has confirmed
+for the current season and links to each player's dates. Confirmation is cleared
+when upcoming dates change (including manager edits) and must be renewed each
+season. Missing confirmation does not block team generation. Parent availability
+forms require an online connection; like the existing public player pages, they
+are shared pages rather than individual parent accounts.
+
 To restore them later, open the generator's **More** menu, choose the exported
 file under **Availability CSV to import**, then select **Import availability CSV**.
 The import replaces the selected fixtures and availability ticks with those in

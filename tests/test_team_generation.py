@@ -40,6 +40,28 @@ class TeamGenerationTests(unittest.TestCase):
         self.assertIsNotNone(match, html)
         return json.loads(match.group(1))
 
+    def test_parent_unavailability_flows_from_public_page_to_generated_team(self):
+        self.prepare(games=2)
+        html = self.client.get('/public/players/1').get_data(as_text=True)
+        token = re.search(r'name="csrf_token" value="([^"]+)"', html)[1]
+        self.client.post('/public/players/1', data={
+            'csrf_token': token, 'action': 'add', 'unavailable_date': self.today.isoformat(),
+        })
+        html = self.client.get('/public/players/1').get_data(as_text=True)
+        revision = re.search(r'name="availability_revision" value="([^"]+)"', html)[1]
+        self.client.post('/public/players/1', data={
+            'csrf_token': token, 'action': 'confirm', 'availability_complete': 'yes',
+            'availability_revision': revision,
+        })
+        html = self.client.get('/team-generator').get_data(as_text=True)
+        ticks = re.findall(r'name="unavailable_for_(\d+)"\s+value="(\d+)"\s+checked', html)
+        self.assertEqual(ticks, [('1', '1')])
+        teams = self.teams(self.generate([(f'unavailable_for_{match_id}', player_id)
+                                         for match_id, player_id in ticks], games=2))
+        first_team = teams[0]['starters'] + teams[0]['subs']
+        self.assertNotIn(1, [player['id'] for player in first_team])
+        self.assertIn(1, application.availability_confirmations())
+
     def test_all_scheduled_games_selected_and_generated_beyond_twenty(self):
         self.prepare(games=24)
         html = self.client.get('/team-generator').get_data(as_text=True)
