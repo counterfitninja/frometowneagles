@@ -66,7 +66,14 @@ be published again from Match Schedule. If availability or keeper targets cannot
 be satisfied, existing teams are left unchanged.
 
 In **More > Generate teams**, select fixtures and tick the players who cannot
-attend. Choose the generator's **More > Export availability (CSV)** to download
+attend. All fixtures needing teams are selected by default, with no 20-game limit
+for scheduled fixtures. Rest games are calculated automatically across the
+selected fixtures using squad size, players per game and availability; unavailable
+games do not count as rest games. Use **Generate again** to replace existing teams
+for every upcoming fixture in the current season. The number of teams comes
+from the selected fixtures, not a manual game count. Add fixtures in
+**Match Schedule** before generating teams.
+Choose the generator's **More > Export availability (CSV)** to download
 the current attendance selections without generating teams. The spreadsheet has
 one row per active player per selected fixture, including player and fixture IDs,
 date, opponent, location, position, and Available/Unavailable status. Unticked

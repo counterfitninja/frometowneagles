@@ -28,7 +28,7 @@ class TeamGenerationTests(unittest.TestCase):
             conn.commit()
 
     def generate(self, extra=(), games=4):
-        values = [('team_size', '9'), ('num_games', str(games))]
+        values = [('team_size', '9')]
         values.extend(('match_ids', str(pid)) for pid in range(1, games + 1))
         response = self.client.post('/team-generator/generate', data=MultiDict(values + list(extra)))
         self.assertEqual(response.status_code, 200)
@@ -38,6 +38,37 @@ class TeamGenerationTests(unittest.TestCase):
         match = re.search(r'\n    generatedTeams = (\[.*?\]);', html)
         self.assertIsNotNone(match, html)
         return json.loads(match.group(1))
+
+    def test_all_scheduled_games_selected_and_generated_beyond_twenty(self):
+        self.prepare(games=24)
+        html = self.client.get('/team-generator').get_data(as_text=True)
+        selected = re.findall(r'class="game-checkbox"[^>]*\bchecked\b', html)
+        self.assertEqual(len(selected), 24)
+        self.assertNotIn('id="manual_num_games"', html)
+        teams = self.teams(self.generate(games=24))
+        self.assertEqual([team['match_id'] for team in teams], list(range(1, 25)))
+        counts = Counter(p['id'] for team in teams for p in team['starters'] + team['subs'])
+        self.assertEqual(sum(counts.values()), 24 * 9)
+        self.assertLessEqual(max(counts.values()) - min(counts.values()), 1)
+
+    def test_no_selected_fixtures_does_not_generate_unscheduled_teams(self):
+        self.prepare()
+        response = self.client.post('/team-generator/generate', data={'team_size': '9'})
+        html = response.get_data(as_text=True)
+        self.assertIn('Select at least one game', html)
+        self.assertNotIn('\n    generatedTeams = [', html)
+
+    def test_no_fixtures_has_no_game_count_or_unscheduled_generation(self):
+        self.prepare(games=0)
+        html = self.client.get('/team-generator').get_data(as_text=True)
+        self.assertNotIn('manual_num_games', html)
+        self.assertNotIn('name="num_games"', html)
+        self.assertRegex(html, r'id="generateButton"[^>]*\bdisabled\b')
+        response = self.client.post('/team-generator/generate', data={
+            'team_size': '9', 'num_games': '4'})
+        html = response.get_data(as_text=True)
+        self.assertIn('Add fixtures in Match Schedule', html)
+        self.assertNotIn('\n    generatedTeams = [', html)
 
     def test_keeper_percentages_apply_only_to_games_in_goal(self):
         self.prepare()
