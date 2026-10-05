@@ -284,6 +284,7 @@
             {% if match.formation_name %}
             <div style="margin-top: 8px; font-size: 13px; color: #756d66;">
                 ✅ Formation: <strong>{{ match.formation_name }}</strong>
+                <strong>{{ 'Published' if match.team_published else 'Private draft' }}</strong>
             </div>
             {% endif %}
         </div>
@@ -301,6 +302,10 @@
                     {% if match.formation_id %}
                     <a href="/formations/{{ match.formation_id }}/gameday">View team sheet</a>
                     <button onclick="shareMatchTeam(this, {{ match.id }})">Share team</button>
+                    <form method="POST" action="{{ url_for('set_team_publication', match_id=match.id) }}">
+                        <input type="hidden" name="published" value="{{ '0' if match.team_published else '1' }}">
+                        <button type="submit">{{ 'Make team private' if match.team_published else 'Publish team' }}</button>
+                    </form>
                     {% endif %}
                     <button onclick="editMatch({{ match.id }}, {{ match.match_date | tojson | forceescape }}, {{ match.opponent | tojson | forceescape }}, {{ (match.location or '') | tojson | forceescape }})">Edit fixture</button>
                     <button onclick="deleteMatch({{ match.id }})" class="danger-action">Delete fixture</button>

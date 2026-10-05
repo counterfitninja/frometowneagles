@@ -16,6 +16,8 @@ def add_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     if request.path == '/static/sw.js':
         response.headers['Service-Worker-Allowed'] = '/'
+    if request.path.startswith('/team-generator'):
+        response.headers.setdefault('Cache-Control', 'private, no-store')
     return response
 
 # Prevent direct database file access
@@ -86,6 +88,9 @@ def init_db():
                 FOREIGN KEY (formation_id) REFERENCES formations(id)
             )
         ''')
+        formation_columns = {column['name'] for column in conn.execute('PRAGMA table_info(formations)').fetchall()}
+        if 'private_team' not in formation_columns:
+            conn.execute('ALTER TABLE formations ADD COLUMN private_team INTEGER NOT NULL DEFAULT 0')
 
         conn.execute('''
             CREATE TABLE IF NOT EXISTS match_results (
@@ -98,6 +103,9 @@ def init_db():
                 FOREIGN KEY (motm_player_id) REFERENCES players(id)
             )
         ''')
+        match_columns = {column['name'] for column in conn.execute('PRAGMA table_info(matches)').fetchall()}
+        if 'team_published' not in match_columns:
+            conn.execute('ALTER TABLE matches ADD COLUMN team_published INTEGER NOT NULL DEFAULT 1')
         
         conn.execute('''
             CREATE TABLE IF NOT EXISTS settings (
@@ -503,21 +511,38 @@ def save_formation():
     match_id = data.get('match_id')  # For linking to match
     
     with get_db() as conn:
+        if match_id and conn.execute('SELECT id FROM matches WHERE id = ?', (match_id,)).fetchone() is None:
+            return jsonify({'success': False, 'error': 'Match not found.'}), 404
         if formation_id:
-            # Update existing formation
-            conn.execute('UPDATE formations SET name = ?, data = ? WHERE id = ?',
-                        (name, formation_data, formation_id))
+            formation = conn.execute('SELECT private_team FROM formations WHERE id = ?', (formation_id,)).fetchone()
+            if formation is None:
+                return jsonify({'success': False, 'error': 'Formation not found.'}), 404
+            private_team = formation['private_team'] or data.get('private_team') is True
+            conn.execute('UPDATE formations SET name = ?, data = ?, private_team = ? WHERE id = ?',
+                        (name, formation_data, int(private_team), formation_id))
             saved_id = formation_id
         else:
             # Create new formation
-            cursor = conn.execute('INSERT INTO formations (name, data) VALUES (?, ?)',
-                        (name, formation_data))
+            private_team = data.get('private_team') is True
+            cursor = conn.execute('INSERT INTO formations (name, data, private_team) VALUES (?, ?, ?)',
+                        (name, formation_data, int(private_team)))
             saved_id = cursor.lastrowid
         
         # Link to match if match_id provided
         if match_id:
-            conn.execute('UPDATE matches SET formation_id = ? WHERE id = ?',
-                        (saved_id, match_id))
+            if data.get('private_team') is True:
+                conn.execute('UPDATE matches SET formation_id = ?, team_published = 0 WHERE id = ?',
+                             (saved_id, match_id))
+            elif private_team:
+                conn.execute('''
+                    UPDATE matches SET
+                        team_published = CASE WHEN formation_id IS ? THEN team_published ELSE 0 END,
+                        formation_id = ?
+                    WHERE id = ?
+                ''', (saved_id, saved_id, match_id))
+            else:
+                conn.execute('UPDATE matches SET formation_id = ? WHERE id = ?',
+                             (saved_id, match_id))
         
         conn.commit()
     
@@ -952,7 +977,7 @@ def public_player(player_id):
         upcoming = conn.execute('''
             SELECT m.match_date, m.opponent, m.location, f.data AS formation_data
             FROM matches m
-            LEFT JOIN formations f ON m.formation_id = f.id
+            LEFT JOIN formations f ON m.formation_id = f.id AND m.team_published = 1
             WHERE m.match_date >= ?
             ORDER BY m.match_date, m.id
         ''', (today,)).fetchall()
@@ -978,9 +1003,10 @@ def public_next_match():
     with get_db() as conn:
         # Find all upcoming matches (today or later)
         upcoming = conn.execute('''
-            SELECT m.*, f.data as formation_data, f.name as formation_name
+            SELECT m.id, m.match_date, m.opponent, m.location,
+                   f.id AS formation_id, f.data as formation_data, f.name as formation_name
             FROM matches m
-            LEFT JOIN formations f ON m.formation_id = f.id
+            LEFT JOIN formations f ON m.formation_id = f.id AND m.team_published = 1
             WHERE m.match_date >= ?
             ORDER BY m.match_date ASC
         ''', (today,)).fetchall()
@@ -1007,7 +1033,7 @@ def public_overview():
             SELECT m.*, f.data as formation_data
             FROM matches m
             LEFT JOIN formations f ON m.formation_id = f.id
-            WHERE m.formation_id IS NOT NULL
+            WHERE m.formation_id IS NOT NULL AND m.team_published = 1
             ORDER BY m.match_date
         ''').fetchall()
         
@@ -1204,9 +1230,34 @@ def delete_match(match_id):
 @login_required
 def link_formation_to_match(match_id, formation_id):
     with get_db() as conn:
-        conn.execute('UPDATE matches SET formation_id = ? WHERE id = ?', (formation_id, match_id))
+        formation = conn.execute('SELECT private_team FROM formations WHERE id = ?', (formation_id,)).fetchone()
+        if formation is None:
+            return jsonify({'success': False, 'error': 'Formation not found.'}), 404
+        if conn.execute('SELECT id FROM matches WHERE id = ?', (match_id,)).fetchone() is None:
+            return jsonify({'success': False, 'error': 'Match not found.'}), 404
+        if formation['private_team']:
+            conn.execute('UPDATE matches SET formation_id = ?, team_published = 0 WHERE id = ?',
+                         (formation_id, match_id))
+        else:
+            conn.execute('UPDATE matches SET formation_id = ? WHERE id = ?', (formation_id, match_id))
         conn.commit()
     return jsonify({'success': True})
+
+@app.route('/matches/<int:match_id>/publication', methods=['POST'])
+@login_required
+def set_team_publication(match_id):
+    publication = request.form.get('published')
+    if publication not in ('0', '1'):
+        abort(400)
+    with get_db() as conn:
+        match = conn.execute('SELECT formation_id FROM matches WHERE id = ?', (match_id,)).fetchone()
+        if match is None:
+            abort(404)
+        if not match['formation_id']:
+            abort(400, description='Save a team before publishing it.')
+        conn.execute('UPDATE matches SET team_published = ? WHERE id = ?', (int(publication), match_id))
+        conn.commit()
+    return redirect(url_for('matches'))
 
 @app.route('/team-generator')
 @login_required
@@ -1449,7 +1500,6 @@ def change_password():
 @app.route('/team-generator/generate', methods=['POST'])
 @login_required
 def generate_teams():
-    import json
     import random
     from collections import defaultdict
     
@@ -1502,6 +1552,8 @@ def generate_teams():
             unavailable_by_match=unavailable_by_match,
             team_size=team_size,
             num_games=requested_num_games,
+            goalkeeper_percentages={str(p['id']): request.form.get(f"goalkeeper_percentage_{p['id']}", '')
+                                    for p in players if p['position'] == 'GK'},
             version=VERSION
         )
 
@@ -1558,7 +1610,7 @@ def generate_teams():
         eligible_outfield = [p for p in eligible_players if p['position'] != 'GK']
         if not eligible_gks:
             return render_generator_error(f'{game_label} has no available goalkeeper.')
-        if not invite_all_players and len(eligible_outfield) + min(2, len(eligible_gks)) < game_team_size:
+        if not invite_all_players and len(eligible_outfield) + 1 < game_team_size:
             return render_generator_error(
                 f'{game_label} does not have enough available outfield players to fill a team of {team_size}.'
             )
@@ -1573,15 +1625,58 @@ def generate_teams():
             'team_size': game_team_size,
         })
 
+    keeper_percentages = {}
+    try:
+        for keeper in goalkeepers:
+            value = request.form.get(f"goalkeeper_percentage_{keeper['id']}", '').strip()
+            keeper_percentages[keeper['id']] = int(value) if value else None
+    except ValueError:
+        return render_generator_error('Enter whole-number goalkeeper percentages between 0 and 100.')
+    supplied = [value for value in keeper_percentages.values() if value is not None]
+    if supplied and (len(supplied) != len(goalkeepers) or
+                     any(value < 0 or value > 100 for value in supplied) or sum(supplied) != 100):
+        return render_generator_error('Set every goalkeeper percentage between 0 and 100, totalling 100%, or leave all blank for equal rotation.')
+    normal_games = [index for index, plan in enumerate(game_plans) if not plan['invite_all_players']]
+    weights = {p['id']: keeper_percentages[p['id']] if supplied else 100 / len(goalkeepers)
+               for p in goalkeepers}
+    exact_targets = {pid: len(normal_games) * weight / 100 for pid, weight in weights.items()}
+    keeper_targets = {pid: int(target) for pid, target in exact_targets.items()}
+    remainder = len(normal_games) - sum(keeper_targets.values())
+    ranked_ids = sorted(exact_targets, key=lambda pid: exact_targets[pid] - keeper_targets[pid], reverse=True)
+    for pid in ranked_ids[:remainder]:
+        keeper_targets[pid] += 1
+
+    # Match quota slots to eligible fixtures, reassigning earlier choices when needed.
+    assigned_keepers = {}
+    def assign_keeper(keeper, visited):
+        for index in normal_games:
+            if index in visited or keeper not in game_plans[index]['eligible_gks']:
+                continue
+            visited.add(index)
+            previous = assigned_keepers.get(index)
+            if previous is None or assign_keeper(previous, visited):
+                assigned_keepers[index] = keeper
+                return True
+        return False
+
+    for keeper in goalkeepers:
+        for _ in range(keeper_targets[keeper['id']]):
+            if not assign_keeper(keeper, set()):
+                return render_generator_error(
+                    'Goalkeeper targets cannot cover every selected fixture with the current availability. '
+                    'Adjust percentages or availability and try again.'
+                )
+
     # Weight each player's selection by the games they can actually attend.
     # This keeps scarce availability from being crowded out by fully available players.
     eligible_game_counts = defaultdict(int)
     total_team_slots = 0
     for plan in game_plans:
-        total_team_slots += plan['team_size']
-        for player in plan['eligible_players']:
+        total_team_slots += plan['team_size'] - (len(plan['eligible_gks']) if plan['invite_all_players'] else 1)
+        for player in plan['eligible_outfield']:
             eligible_game_counts[player['id']] += 1
-    average_games = total_team_slots / len(players) if players else 0
+    outfield_count = len(players) - len(goalkeepers)
+    average_games = total_team_slots / outfield_count if outfield_count else 0
 
     def fairness_key(player, player_game_count):
         eligible_games = eligible_game_counts[player['id']]
@@ -1592,17 +1687,12 @@ def generate_teams():
     teams = []
     player_game_count = defaultdict(int)
 
-    for plan in game_plans:
+    for game_index, plan in enumerate(game_plans):
         eligible_players = plan['eligible_players']
         if plan['invite_all_players']:
             full_team = eligible_players[:]
         else:
-            # Pick one or two available goalkeepers first, then fill remaining
-            # places with the least-used eligible outfield players.
-            team_gks = sorted(
-                plan['eligible_gks'],
-                key=lambda player: fairness_key(player, player_game_count)
-            )[:min(2, len(plan['eligible_gks']))]
+            team_gks = [assigned_keepers[game_index]]
             remaining_spots = plan['team_size'] - len(team_gks)
             team_outfield = sorted(
                 plan['eligible_outfield'],
@@ -1649,8 +1739,9 @@ def generate_teams():
     
     # Count missed games only where a player was available to attend.
     max_games_missed = max(
-        eligible_game_counts[player['id']] - player_game_count[player['id']]
-        for player in players
+        (eligible_game_counts[player['id']] - player_game_count[player['id']]
+         for player in players if player['position'] != 'GK'),
+        default=0
     )
     unavailable_count = sum(len(plan['unavailable_ids']) for plan in game_plans)
 
@@ -1662,6 +1753,11 @@ def generate_teams():
         'unavailable_count': unavailable_count,
         'invite_all_count': len(invite_all_match_ids)
     }
+    stats['goalkeepers'] = [
+        {'name': keeper['name'], 'target': round(weights[keeper['id']], 2),
+         'games': player_game_count[keeper['id']], 'total': num_games}
+        for keeper in goalkeepers
+    ]
     
     return render_template('team_generator.html', 
                          teams=teams, 
@@ -1673,6 +1769,8 @@ def generate_teams():
                          unavailable_by_match=unavailable_by_match,
                          team_size=team_size,
                          num_games=num_games,
+                         goalkeeper_percentages={str(pid): value if value is not None else ''
+                                                 for pid, value in keeper_percentages.items()},
                          version=VERSION)
 
 if __name__ == '__main__':
