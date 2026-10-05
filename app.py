@@ -942,16 +942,18 @@ def matches():
 @login_required
 def matches_overview():
     import json
+    today = datetime.now().date().isoformat()
     
     with get_db() as conn:
-        # Get all matches with formations
+        # Get upcoming matches with formations
         matches_list = conn.execute('''
             SELECT m.*, f.data as formation_data
             FROM matches m
             LEFT JOIN formations f ON m.formation_id = f.id
             WHERE m.formation_id IS NOT NULL
+              AND m.match_date >= ?
             ORDER BY m.match_date
-        ''').fetchall()
+        ''', (today,)).fetchall()
         
         # Get all players
         all_players = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
@@ -1035,16 +1037,18 @@ def matches_overview():
 @login_required
 def matches_overview_text():
     import json
+    today = datetime.now().date().isoformat()
     
     with get_db() as conn:
-        # Get all matches with formations
+        # Get upcoming matches with formations
         matches_list = conn.execute('''
             SELECT m.*, f.data as formation_data
             FROM matches m
             LEFT JOIN formations f ON m.formation_id = f.id
             WHERE m.formation_id IS NOT NULL
+              AND m.match_date >= ?
             ORDER BY m.match_date
-        ''').fetchall()
+        ''', (today,)).fetchall()
         
         # Get all players
         all_players = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
