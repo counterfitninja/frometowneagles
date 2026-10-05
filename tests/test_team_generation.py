@@ -75,6 +75,24 @@ class TeamGenerationTests(unittest.TestCase):
                 self.assertGreater(counts[keeper_id], 10)
                 self.assertIn(20 - counts[keeper_id], (8, 9))
 
+    def test_keeper_fixtures_are_randomised_without_changing_targets(self):
+        self.prepare(games=20)
+
+        def shuffle(values):
+            if values == list(range(20)):
+                values[:] = values[::2] + values[1::2]
+
+        with patch('random.shuffle', side_effect=shuffle) as mocked_shuffle:
+            teams = self.teams(self.generate([
+                ('goalkeeper_percentage_1', '50'),
+                ('goalkeeper_percentage_4', '50')], games=20))
+
+        keeper_ids = [team['starters'][0]['id'] for team in teams]
+        self.assertEqual(Counter(keeper_ids), {1: 10, 4: 10})
+        self.assertTrue(all(first != second for first, second in zip(keeper_ids, keeper_ids[1:])))
+        self.assertTrue(any(call.args[0] == list(range(0, 20, 2)) + list(range(1, 20, 2))
+                            for call in mocked_shuffle.call_args_list))
+
     def test_zero_goal_target_keeper_can_play_outfield_and_saved_role_is_preserved(self):
         self.prepare()
         teams = self.teams(self.generate([
