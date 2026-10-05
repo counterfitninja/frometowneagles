@@ -497,6 +497,10 @@
 <div class="card">
     <h2>🎲 Team Generator</h2>
     <p style="color: #756d66; margin-bottom: 20px;">Automatically generate balanced teams for multiple games</p>
+    {% if not regenerate %}
+    <a href="{{ url_for('team_generator', regenerate=1) }}" class="btn">Generate again</a>
+    <p class="selection-help">Review and replace upcoming teams in the current season (1 September to 31 August). Past fixtures and other seasons are kept.</p>
+    {% endif %}
 
     {% if error %}
     <div style="background: #fee; border: 2px solid #c33; color: #c33; padding: 15px; border-radius: 0; margin-bottom: 20px;">
@@ -509,9 +513,15 @@
     {% endif %}
 
     <div class="generator-section">
+        {% if regenerate %}
+        <h3 style="color: #1e1f28; margin-bottom: 8px;">Generate again</h3>
+        <p class="selection-help">Review availability and goalkeeper targets for all upcoming fixtures this season. Generating again replaces their saved teams with private drafts, including teams already published. Results, past fixtures and other seasons are kept.</p>
+        {% else %}
         <h3 style="color: #1e1f28; margin-bottom: 8px;">Generate Teams</h3>
         <p style="color: #756d66; margin-bottom: 18px;">Choose the fixtures you want to plan. Each selected game gets its own balanced team.</p>
-        <form method="POST" action="/team-generator/generate" class="generate-form" enctype="multipart/form-data">
+        {% endif %}
+        <form method="POST" action="{{ url_for('generate_teams') if not regenerate else '/team-generator/regenerate' }}" class="generate-form" enctype="multipart/form-data"
+              {% if regenerate %}onsubmit="return confirm('Replace all upcoming teams in the current season with new private drafts? Past fixtures and other seasons will be kept.');"{% endif %}>
             <div class="form-group game-selection-group">
                 <div class="section-heading-row">
                     <label for="gamePicker">Games to include</label>
@@ -527,10 +537,12 @@
                                 type="checkbox"
                                 class="game-checkbox"
                                 id="game-{{ match.id }}"
-                                name="match_ids"
+                                {% if not regenerate %}name="match_ids"{% endif %}
                                 value="{{ match.id }}"
+                                {% if regenerate %}disabled{% endif %}
                                 {% if match.id in selected_match_ids|default([]) %}checked{% endif %}
                             >
+                            {% if regenerate %}<input type="hidden" name="match_ids" value="{{ match.id }}">{% endif %}
                             <label class="game-label" for="game-{{ match.id }}">
                                 <strong>{{ match.match_date | ukdate }} · vs {{ match.opponent }}</strong>
                                 <span>📍 {{ match.location or 'Location TBD' }}</span>
@@ -608,10 +620,11 @@
                     </div>
                     {% endfor %}
                 </div>
-                <p class="selection-help">Select only the games you want to generate. Set availability for each fixture before generating; unavailable players are left out, and everyone else is balanced across the games they can attend. “Invite all available players” ignores the team-size limit for that fixture.</p>
+                <p class="selection-help">{% if regenerate %}All upcoming fixtures this season are included.{% else %}Select only the games you want to generate.{% endif %} Set availability for each fixture before generating; unavailable players are left out, and everyone else is balanced across the games they can attend. “Invite all available players” ignores the team-size limit for that fixture.</p>
                 {% else %}
                 <div class="empty-game-picker">
-                    No upcoming games without formations. <a href="/matches">Add or review games in Match Schedule</a>, or use a manual game count below.
+                    {% if regenerate %}No upcoming fixtures in the current season. <a href="/matches">Review games in Match Schedule</a>.
+                    {% else %}No upcoming games without formations. <a href="/matches">Add or review games in Match Schedule</a>, or use a manual game count below.{% endif %}
                     Saved player unavailability is kept on the <a href="{{ url_for('players') }}#saved-unavailability">Players page</a>, where you can <a href="{{ url_for('export_saved_unavailability') }}">export it (CSV)</a>.
                 </div>
                 {% endif %}
@@ -632,7 +645,7 @@
                 {% endfor %}
             </fieldset>
             <div class="generator-options">
-                {% if not matches %}
+                {% if not matches and not regenerate %}
                 <div class="form-group">
                     <label for="manual_num_games">Number of Games</label>
                     <input type="number" id="manual_num_games" min="1" max="20" value="{{ num_games|default(4) }}" required>
@@ -642,8 +655,11 @@
                     <label for="team_size">Players per game (includes subs)</label>
                     <input type="number" id="team_size" name="team_size" min="9" max="15" value="{{ team_size|default(12) }}" required>
                 </div>
-                <button type="submit" id="generateButton" class="btn btn-success" style="flex: 0;">🎲 Generate Teams</button>
-                {% if matches %}
+                <button type="submit" id="generateButton" class="btn btn-success" style="flex: 0;" {% if regenerate and not matches %}disabled{% endif %}>{{ 'Generate again' if regenerate else '🎲 Generate Teams' }}</button>
+                {% if regenerate %}
+                <a href="{{ url_for('team_generator') }}" class="btn">Cancel</a>
+                {% endif %}
+                {% if matches and not regenerate %}
                 <details class="action-menu">
                     <summary class="btn">More</summary>
                     <div class="menu-actions">
@@ -718,9 +734,13 @@
                 <div style="font-size: 14px; color: #756d66;">
                     {{ team.starters|length }} starters + {{ team.subs|length }} subs
                 </div>
+                {% if team.saved %}
+                <span class="status-badge">Private draft saved</span>
+                {% else %}
                 <button onclick="saveTeamAsMatch({{ loop.index0 }})" class="btn" style="background: #d4af37; color: #1e1f28; padding: 8px 16px; font-size: 13px;">
                     💾 Save private draft
                 </button>
+                {% endif %}
             </div>
         </div>
 

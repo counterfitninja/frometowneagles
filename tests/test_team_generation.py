@@ -2,7 +2,8 @@ import json
 import re
 import unittest
 from collections import Counter
-from datetime import timedelta
+from datetime import date, datetime, timedelta
+from unittest.mock import patch
 from werkzeug.datastructures import MultiDict
 
 import test_public_players as fixtures
@@ -265,6 +266,111 @@ class TeamGenerationTests(unittest.TestCase):
         application.init_db()
         with application.get_db() as conn:
             self.assertEqual(conn.execute('SELECT team_published FROM matches WHERE id=1').fetchone()[0], 0)
+
+    def regeneration_clock(self):
+        self.today = date(2026, 10, 5)
+        clock = patch.object(application, 'datetime', wraps=datetime)
+        mocked = clock.start()
+        mocked.now.return_value = datetime(2026, 10, 5)
+        self.addCleanup(clock.stop)
+
+    def save_season_teams(self):
+        old_ids = []
+        with application.get_db() as conn:
+            for match_id in range(1, 5):
+                cursor = conn.execute(
+                    'INSERT INTO formations (name, data) VALUES (?, ?)',
+                    (f'Old {match_id}', '{"formations": []}')
+                )
+                old_ids.append(cursor.lastrowid)
+                conn.execute('UPDATE matches SET formation_id=? WHERE id=?',
+                             (cursor.lastrowid, match_id))
+            conn.commit()
+        return old_ids
+
+    def test_season_starts_on_september_first(self):
+        for today, start, end in (
+                (date(2026, 8, 31), '2025-09-01', '2026-09-01'),
+                (date(2026, 9, 1), '2026-09-01', '2027-09-01'),
+                (date(2027, 1, 1), '2026-09-01', '2027-09-01')):
+            self.assertEqual(application.current_season_bounds(today),
+                             (today.isoformat(), start, end))
+
+    def test_generate_again_replaces_only_upcoming_season_teams_privately(self):
+        self.regeneration_clock()
+        self.prepare()
+        old_ids = self.save_season_teams()
+        with application.get_db() as conn:
+            for match_date in ('2026-08-31', '2026-09-01', '2026-10-04', '2027-09-01'):
+                conn.execute('INSERT INTO matches (match_date, opponent, formation_id) VALUES (?, ?, ?)',
+                             (match_date, 'Kept fixture', old_ids[0]))
+            conn.execute('INSERT INTO player_unavailability (player_id, unavailable_date) VALUES (2, ?)',
+                         (self.today.isoformat(),))
+            conn.commit()
+        html = self.client.get('/team-generator?regenerate=1').get_data(as_text=True)
+        self.assertIn('Generate again', html)
+        self.assertIn('id="unavailable-1-2"', html)
+        self.assertNotIn('Kept fixture', html)
+        values = [('team_size', '9'), ('goalkeeper_percentage_1', '75'),
+                  ('goalkeeper_percentage_4', '25'), ('unavailable_for_1', '2')]
+        values.extend(('match_ids', str(match_id)) for match_id in range(1, 5))
+        response = self.client.post('/team-generator/regenerate', data=MultiDict(values))
+        self.assertEqual(response.status_code, 200)
+        teams = self.teams(response.get_data(as_text=True))
+        self.assertEqual(Counter(team['starters'][0]['id'] for team in teams), {1: 3, 4: 1})
+        self.assertNotIn(2, [player['id'] for player in teams[0]['starters'] + teams[0]['subs']])
+        with application.get_db() as conn:
+            upcoming = conn.execute('SELECT formation_id, team_published FROM matches WHERE id<=4').fetchall()
+            self.assertTrue(all(row['formation_id'] not in old_ids and row['team_published'] == 0
+                                for row in upcoming))
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM formations WHERE id IN (?, ?, ?)',
+                                          tuple(old_ids[1:])).fetchone()[0], 0)
+            kept = conn.execute('SELECT formation_id, team_published FROM matches WHERE id>4').fetchall()
+            self.assertTrue(all(row['formation_id'] == old_ids[0] and row['team_published'] == 1
+                                for row in kept))
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM player_unavailability').fetchone()[0], 1)
+            stored = json.loads(conn.execute('SELECT data FROM formations WHERE id=?',
+                                            (upcoming[0]['formation_id'],)).fetchone()[0])
+            self.assertEqual(len(stored['formations'][0]['players']), 9)
+        html = self.client.get('/team-generator?regenerate=1').get_data(as_text=True)
+        self.assertIn('value="75"', html)
+        self.assertIn('value="25"', html)
+
+    def test_failed_regeneration_keeps_existing_teams_and_availability(self):
+        self.regeneration_clock()
+        self.prepare()
+        old_ids = self.save_season_teams()
+        values = [('team_size', '9'), ('goalkeeper_percentage_1', '100'),
+                  ('goalkeeper_percentage_4', '0'), ('unavailable_for_1', '1')]
+        values.extend(('match_ids', str(match_id)) for match_id in range(1, 5))
+        html = self.client.post('/team-generator/regenerate', data=MultiDict(values)).get_data(as_text=True)
+        self.assertIn('targets cannot cover', html)
+        with application.get_db() as conn:
+            self.assertEqual([row[0] for row in conn.execute('SELECT formation_id FROM matches ORDER BY id')],
+                             old_ids)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM formations').fetchone()[0], 4)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM player_unavailability').fetchone()[0], 0)
+
+    def test_regeneration_requires_login_and_all_current_fixtures(self):
+        self.regeneration_clock()
+        self.prepare()
+        html = self.client.post('/team-generator/regenerate', data={
+            'team_size': '9', 'match_ids': '1'
+        }).get_data(as_text=True)
+        self.assertIn('Review all upcoming fixtures', html)
+        self.client.get('/logout')
+        self.assertEqual(self.client.post('/team-generator/regenerate').status_code, 302)
+
+    def test_regeneration_covers_a_season_longer_than_twenty_games(self):
+        self.regeneration_clock()
+        self.prepare(games=21)
+        response = self.client.post('/team-generator/regenerate', data=MultiDict(
+            [('team_size', '9')] + [('match_ids', str(match_id)) for match_id in range(1, 22)]
+        ))
+        self.assertEqual(len(self.teams(response.get_data(as_text=True))), 21)
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM matches WHERE formation_id IS NOT NULL')
+                             .fetchone()[0], 21)
 
 
 if __name__ == '__main__':
