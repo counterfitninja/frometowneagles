@@ -537,6 +537,11 @@
         <p class="selection-help">Publishes every saved private team across all dates and seasons. Save generated teams to a fixture first; games without a saved team are unchanged.</p>
     </form>
 
+    {% with clear_squads_return_to='team_generator' %}
+    {% include 'clear_squads_form.html' %}
+    {% endwith %}
+    <p class="selection-help">Clear all squads removes saved selections for today and future games across all seasons. Past teams, results and saved player availability are kept.</p>
+
     <div class="generator-section">
         {% if regenerate %}
         <h3 style="color: #1e1f28; margin-bottom: 8px;">Generate again</h3>
