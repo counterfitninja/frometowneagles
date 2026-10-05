@@ -191,8 +191,14 @@ def format_uk_date(date_string):
 def inject_globals():
     """Make team_title available to all templates"""
     return {
-        'team_title': get_setting('team_title', 'Under-12 Football Manager')
+        'team_title': get_setting('team_title', 'Under-12 Football Manager'),
+        'clear_squads_token': clear_squads_token,
     }
+
+def clear_squads_token():
+    if 'clear_squads_token' not in session:
+        session['clear_squads_token'] = secrets.token_urlsafe(32)
+    return session['clear_squads_token']
 
 def login_required(f):
     @wraps(f)
@@ -1109,7 +1115,43 @@ def matches():
             ''', (today,)).fetchall()
     
     matches = [dict(m) for m in matches_list]
-    return render_template('matches.html', matches=matches, show_past=show_past, version=VERSION)
+    return render_template('matches.html', matches=matches, show_past=show_past,
+                           success=request.args.get('success'), version=VERSION)
+
+@app.route('/matches/clear-squads', methods=['POST'])
+@login_required
+def clear_upcoming_squads():
+    token = session.get('clear_squads_token')
+    if not token or not secrets.compare_digest(token, request.form.get('csrf_token', '')):
+        abort(400, description='This form has expired. Reload the page and try again.')
+    today = datetime.now().date().isoformat()
+    with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        old_ids = {row['formation_id'] for row in conn.execute('''
+            SELECT formation_id FROM matches
+            WHERE match_date >= ? AND formation_id IS NOT NULL
+        ''', (today,))}
+        cursor = conn.execute('''
+            UPDATE matches SET formation_id = NULL, team_published = 0
+            WHERE match_date >= ? AND formation_id IS NOT NULL
+        ''', (today,))
+        cleared_count = cursor.rowcount
+        for formation_id in old_ids:
+            conn.execute('''
+                DELETE FROM formations WHERE id = ?
+                AND NOT EXISTS (SELECT 1 FROM matches WHERE formation_id = ?)
+            ''', (formation_id, formation_id))
+        conn.commit()
+    message = (f'Cleared squads for {cleared_count} upcoming game(s).'
+               if cleared_count else 'No saved squads to clear for upcoming games.')
+    params = {'success': message}
+    if request.form.get('return_to') == 'team_generator':
+        if request.form.get('regenerate') == '1':
+            params['regenerate'] = '1'
+        return redirect(url_for('team_generator', **params))
+    if request.form.get('show_past') == 'true':
+        params['show_past'] = 'true'
+    return redirect(url_for('matches', **params))
 
 @app.route('/matches/overview')
 @login_required

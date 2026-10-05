@@ -1,0 +1,8 @@
+<form method="POST" action="{{ url_for('clear_upcoming_squads') }}"
+      onsubmit="return confirm('Clear all saved squads for today and future games across all seasons? This cannot be undone. Past teams, results and saved player availability will be kept.');">
+    <input type="hidden" name="csrf_token" value="{{ clear_squads_token() }}">
+    <input type="hidden" name="return_to" value="{{ clear_squads_return_to }}">
+    {% if regenerate %}<input type="hidden" name="regenerate" value="1">{% endif %}
+    {% if show_past %}<input type="hidden" name="show_past" value="true">{% endif %}
+    <button type="submit" class="btn btn-danger">Clear all squads</button>
+</form>

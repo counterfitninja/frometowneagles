@@ -73,6 +73,13 @@ be published again using **Make all games public** or individually from Match
 Schedule. If availability or keeper targets cannot
 be satisfied, existing teams are left unchanged.
 
+To remove selections without generating replacements, use **Clear all squads**
+in **Match Schedule** or **Generate teams** and confirm. This clears saved squads
+for today and all future fixtures across all seasons, including private and
+published teams. Past squads, fixtures, results, saved player availability and
+parent confirmations are kept. Cleared formations are deleted only if no other
+fixture uses them; unrelated saved formations are unchanged. This cannot be undone.
+
 In **More > Generate teams**, select fixtures and tick the players who cannot
 attend. All fixtures needing teams are selected by default, with no 20-game limit
 for scheduled fixtures. Rest games are calculated automatically across the

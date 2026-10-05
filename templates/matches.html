@@ -192,6 +192,9 @@
         </div>
         <div class="schedule-actions">
             <button onclick="showAddMatchForm()" class="btn btn-success">Add match</button>
+            {% with clear_squads_return_to='matches' %}
+            {% include 'clear_squads_form.html' %}
+            {% endwith %}
             <details class="action-menu">
                 <summary class="btn">More</summary>
                 <div class="menu-actions">
@@ -205,6 +208,9 @@
             </details>
         </div>
     </div>
+
+    <p class="muted">Clear all squads removes selections for today and future games across all seasons. Past teams, results and saved player availability are kept.</p>
+    {% if success %}<p role="status">{{ success }}</p>{% endif %}
 
     <!-- Add Match Form -->
     <div id="addMatchForm" style="display: none; background: #f7efe5; border-radius: 0; padding: 20px; margin-bottom: 20px; border-left: 4px solid #1e1f28;">
