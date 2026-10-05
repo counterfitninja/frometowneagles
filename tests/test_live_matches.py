@@ -135,6 +135,20 @@ class LiveMatchTests(unittest.TestCase):
 
         self.assertIn(f'vs Town&#39;s &lt;/script&gt;', html)
 
+    def test_matches_overview_excludes_past_matches_and_whatsapp_text(self):
+        formation_id = self.formation()
+        self.fixture(-1, formation_id)
+        self.fixture(0, formation_id)
+
+        html = self.page('/matches/overview')
+        self.assertEqual(html.count('class="match-title">vs '), 1)
+        self.assertIn('Upcoming Matches Overview', html)
+
+        response = self.client.get('/matches/overview/text')
+        self.assertEqual(response.status_code, 200)
+        text = response.get_data(as_text=True)
+        self.assertEqual(text.count("vs Town's </script>"), 1)
+
     def test_legacy_matchday_redirects_to_live(self):
         formation_id = self.formation()
         self.fixture(formation_id=formation_id)

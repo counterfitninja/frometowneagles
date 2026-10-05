@@ -277,7 +277,7 @@
 
 {% block content %}
 <div class="card">
-    <h2>📋 All Matches Overview</h2>
+    <h2>📋 Upcoming Matches Overview</h2>
     <p style="color: #756d66; margin-bottom: 20px;">View all upcoming matches with team selections</p>
 
     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
@@ -368,14 +368,14 @@
     </div>
     {% else %}
     <div style="text-align: center; padding: 40px; color: #756d66;">
-        <p>No matches with teams found.</p>
+        <p>No upcoming matches with teams found.</p>
         <p style="margin-top: 10px;"><a href="/matches" style="color: #1e1f28;">Go to Matches</a> to create teams.</p>
     </div>
     {% endif %}
 
     {% if player_stats %}
     <div class="match-overview-card" style="margin-top: 30px;">
-        <h3 style="color: #1e1f28; margin-bottom: 20px; text-align: center; font-size: 24px;">📋 Player Statistics Across All Matches</h3>
+        <h3 style="color: #1e1f28; margin-bottom: 20px; text-align: center; font-size: 24px;">📋 Player Statistics Across Upcoming Matches</h3>
         <table style="width: 100%; border-collapse: collapse;">
             <thead>
                 <tr style="background: #f7efe5; border-bottom: 2px solid #d2c5b6;">
