@@ -512,6 +512,13 @@
     <p role="status" style="margin-bottom: 18px;">{{ success }}</p>
     {% endif %}
 
+    <form method="POST" action="{{ url_for('publish_all_teams') }}"
+          onsubmit="return confirm('Make every saved private team public, including past games and other seasons? Unsaved generated teams will not be published.');">
+        {% if regenerate %}<input type="hidden" name="regenerate" value="1">{% endif %}
+        <button type="submit" class="btn btn-success">Make all games public</button>
+        <p class="selection-help">Publishes every saved private team across all dates and seasons. Save generated teams to a fixture first; games without a saved team are unchanged.</p>
+    </form>
+
     <div class="generator-section">
         {% if regenerate %}
         <h3 style="color: #1e1f28; margin-bottom: 8px;">Generate again</h3>
@@ -677,7 +684,7 @@
             </div>
         </form>
         <p style="font-size: 12px; color: #756d66; margin-top: 10px;">
-            ℹ️ Generated teams are private. Save a draft, then publish it from Match Schedule when ready. Rest games are calculated automatically across all selected fixtures from squad size, players per game and availability. Unavailable players are excluded, not counted as resting. All players share rest-game rotation, with games in goal counted as playing.
+            ℹ️ Generated teams are private. Save a draft, then use Make all games public above or publish it individually from Match Schedule when ready. Rest games are calculated automatically across all selected fixtures from squad size, players per game and availability. Unavailable players are excluded, not counted as resting. All players share rest-game rotation, with games in goal counted as playing.
         </p>
     </div>
 
@@ -943,7 +950,7 @@ function showMatchSelectionModal(teamIndex, team) {
     let modalContent = `
         <div style="background: white; padding: 30px; border-radius: 0; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
             <h3 style="margin-bottom: 20px; color: #1e1f28;">Save Private Team Draft</h3>
-            <p>This team stays private until you publish it from Match Schedule.</p>
+            <p>This team stays private until you use Make all games public or publish it from Match Schedule.</p>
     `;
     
     if (availableMatches && availableMatches.length > 0) {

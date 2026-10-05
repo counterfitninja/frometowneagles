@@ -243,6 +243,73 @@ class TeamGenerationTests(unittest.TestCase):
         self.assertIn('Private draft', html)
         self.assertIn('Publish team', html)
 
+    def test_bulk_publication_publishes_saved_teams_across_all_dates(self):
+        self.prepare(games=4)
+        formation = json.dumps({'formations': [{'players': [{'id': 1}], 'subs': []}]})
+        for match_id in (1, 2, 3):
+            self.client.post('/formations/save', json={
+                'name': f'Draft {match_id}', 'data': formation,
+                'match_id': match_id, 'private_team': True})
+        self.client.post('/matches/3/publication', data={'published': '1'})
+        self.client.post('/formations/save', json={
+            'name': 'Unlinked draft', 'data': formation, 'private_team': True})
+        with application.get_db() as conn:
+            conn.execute('UPDATE matches SET match_date=? WHERE id=1',
+                         ((self.today - timedelta(days=1)).isoformat(),))
+            conn.execute('UPDATE matches SET match_date=? WHERE id=2',
+                         ((self.today + timedelta(days=730)).isoformat(),))
+            conn.execute('UPDATE matches SET team_published=0 WHERE id=4')
+            conn.execute('INSERT INTO matches (match_date, opponent, formation_id, team_published) '
+                         'VALUES (?, ?, 999, 0)', (self.today.isoformat(), 'Missing team'))
+            conn.commit()
+            before = [tuple(row) for row in conn.execute(
+                'SELECT id, match_date, opponent, formation_id FROM matches ORDER BY id')]
+            formations_before = [tuple(row) for row in conn.execute('SELECT * FROM formations ORDER BY id')]
+
+        html = self.client.get('/team-generator').get_data(as_text=True)
+        self.assertIn('Make all games public', html)
+        self.assertIn('onsubmit="return confirm(\'Make every saved private team public', html)
+        response = self.client.post('/team-generator/publish-all', follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Made 2 saved team(s) public.', response.get_data(as_text=True))
+        with application.get_db() as conn:
+            self.assertEqual([row[0] for row in conn.execute(
+                'SELECT team_published FROM matches ORDER BY id')], [1, 1, 1, 0, 0])
+            self.assertEqual([tuple(row) for row in conn.execute(
+                'SELECT id, match_date, opponent, formation_id FROM matches ORDER BY id')], before)
+            self.assertEqual([tuple(row) for row in conn.execute(
+                'SELECT * FROM formations ORDER BY id')], formations_before)
+        html = self.client.get('/public/overview').get_data(as_text=True)
+        self.assertIn('Town 1', html)
+        self.assertNotIn('Town 3', html)
+        self.assertNotIn('Missing team', html)
+        html = self.client.get('/public/players/2').get_data(as_text=True)
+        self.assertIn('Town 1', html.split('<h2 id="unselected-heading">')[0])
+        response = self.client.post('/team-generator/publish-all', follow_redirects=True)
+        self.assertIn('No saved private teams to publish.', response.get_data(as_text=True))
+
+    def test_bulk_publication_requires_login_and_post(self):
+        self.prepare(games=1)
+        self.client.post('/formations/save', json={
+            'name': 'Draft', 'data': '{"formations": []}', 'match_id': 1, 'private_team': True})
+        self.assertEqual(self.client.get('/team-generator/publish-all').status_code, 405)
+        self.client.get('/logout')
+        response = self.client.post('/team-generator/publish-all')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/login', response.location)
+        with application.get_db() as conn:
+            self.assertEqual(conn.execute('SELECT team_published FROM matches WHERE id=1').fetchone()[0], 0)
+
+    def test_bulk_publication_when_no_teams_and_from_regenerate_page(self):
+        self.prepare(games=0)
+        html = self.client.get('/team-generator').get_data(as_text=True)
+        self.assertIn('Make all games public', html)
+        response = self.client.post('/team-generator/publish-all', data={'regenerate': '1'},
+                                    follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('regenerate=1', response.request.url)
+        self.assertIn('No saved private teams to publish.', response.get_data(as_text=True))
+
     def test_custom_draft_linking_is_private_and_publication_requires_login(self):
         self.prepare(games=1)
         response = self.client.post('/formations/save', json={

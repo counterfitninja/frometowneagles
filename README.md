@@ -51,7 +51,11 @@ games, including invite-all fixtures.
 Generated teams are private. **Save private draft** stores a team and, when a
 fixture is chosen, links it without exposing its selections on public pages.
 Use **Matches > More > Publish team** to release it; **Make team private** hides
-it again. Managers can still edit private teams. Existing selected teams remain
+it again. To release them together, use **Generate teams > Make all games public**
+and confirm. This publishes every saved private team, including past fixtures
+and other seasons. Save generated teams to a fixture first; unsaved teams,
+custom formations without a fixture, and games without a saved team are unchanged.
+Managers can still edit private teams. Existing selected teams remain
 published after upgrading. A custom-named formation without a fixture remains
 manager-only; linking it later also creates a private draft requiring publication.
 
@@ -62,7 +66,8 @@ the saved availability, team size and goalkeeper percentages, then confirm
 The most recently used team size and keeper percentages are pre-filled.
 Past fixtures, other seasons, results and saved player availability are kept.
 Old formations are removed only if no other fixture uses them. New teams must
-be published again from Match Schedule. If availability or keeper targets cannot
+be published again using **Make all games public** or individually from Match
+Schedule. If availability or keeper targets cannot
 be satisfied, existing teams are left unchanged.
 
 In **More > Generate teams**, select fixtures and tick the players who cannot
