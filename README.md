@@ -4,6 +4,9 @@ This is a Flask-based football team management application designed to run on Pt
 
 ## Features
 - Player management with ratings and retirement status (historic stats preserved)
+- Retired players are excluded from upcoming team sheets, match selections and
+  non-playing lists, including previously saved lineups. Past teams and recorded
+  results are preserved; reactivating a player makes them eligible again.
 - Match scheduling and team formations
 - Drag-and-drop pitch interface
 - Public pages for parents/players

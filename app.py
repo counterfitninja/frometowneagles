@@ -531,6 +531,37 @@ def toggle_player_status(player_id):
             conn.commit()
     return redirect(url_for('players'))
 
+
+def eligible_match_players(players, match_date=None):
+    """Keep historical squads intact; only active players are eligible from today."""
+    if match_date and match_date < datetime.now().date().isoformat():
+        return list(players)
+    return [player for player in players if player['status'] == 'active']
+
+
+def eligible_formations(formations, players, match_date=None):
+    if match_date and match_date < datetime.now().date().isoformat():
+        return formations
+    active_ids = {str(player['id']) for player in eligible_match_players(players)}
+    return [
+        {
+            **formation,
+            **{
+                key: [player for player in formation[key] if str(player['id']) in active_ids]
+                for key in ('players', 'subs', 'squad') if key in formation
+            }
+        }
+        for formation in formations
+    ]
+
+
+def formation_match_date(conn, formation_id):
+    # Shared formations remain active-only if any linked fixture is upcoming.
+    return conn.execute(
+        'SELECT MAX(match_date) FROM matches WHERE formation_id = ?', (formation_id,)
+    ).fetchone()[0]
+
+
 @app.route('/pitch')
 @login_required
 def pitch():
@@ -569,6 +600,12 @@ def pitch():
             WHERE status = 'active'
             ORDER BY name
         ''').fetchall()
+        if formation_data:
+            all_players = conn.execute('SELECT id, status FROM players').fetchall()
+            formation_data['data']['formations'] = eligible_formations(
+                formation_data['data'].get('formations', []), all_players,
+                formation_match_date(conn, formation_id)
+            )
 
     import json as _json_pitch
     sub_counts = {}
@@ -604,6 +641,7 @@ def api_match_team(match_id):
         return jsonify({'error': 'Match not found'}), 404
 
     match_dict = dict(match)
+    all_players = eligible_match_players(all_players, match_dict['match_date'])
     if match_dict.get('formation_data'):
         formation_data = json.loads(match_dict['formation_data'])
         playing_ids = set()
@@ -639,6 +677,7 @@ def api_formations():
 @app.route('/formations/save', methods=['POST'])
 @login_required
 def save_formation():
+    import json
     data = request.json
     name = data.get('name')
     formation_data = data.get('data')
@@ -648,6 +687,36 @@ def save_formation():
     with get_db() as conn:
         if match_id and conn.execute('SELECT id FROM matches WHERE id = ?', (match_id,)).fetchone() is None:
             return jsonify({'success': False, 'error': 'Match not found.'}), 404
+        match_date = formation_match_date(conn, formation_id) if formation_id else None
+        if match_id:
+            linked_date = conn.execute('SELECT match_date FROM matches WHERE id = ?', (match_id,)).fetchone()[0]
+            match_date = max(match_date, linked_date) if match_date else linked_date
+        if not match_date or match_date >= datetime.now().date().isoformat():
+            try:
+                parsed = json.loads(formation_data)
+            except (TypeError, ValueError):
+                return jsonify({'success': False, 'error': 'Invalid formation data.'}), 400
+            if not isinstance(parsed, dict) or not isinstance(parsed.get('formations', []), list):
+                return jsonify({'success': False, 'error': 'Invalid formation data.'}), 400
+            selected_ids = set()
+            for formation in parsed.get('formations', []):
+                if not isinstance(formation, dict):
+                    return jsonify({'success': False, 'error': 'Invalid formation data.'}), 400
+                for key in ('players', 'subs', 'squad'):
+                    selections = formation.get(key, [])
+                    if not isinstance(selections, list) or any(
+                        not isinstance(player, dict) or 'id' not in player for player in selections
+                    ):
+                        return jsonify({'success': False, 'error': 'Invalid formation data.'}), 400
+                    selected_ids.update(str(player['id']) for player in selections)
+            retired_ids = {
+                str(player['id']) for player in conn.execute("SELECT id FROM players WHERE status = 'retired'")
+            }
+            if selected_ids & retired_ids:
+                return jsonify({
+                    'success': False,
+                    'error': 'Retired players cannot be selected for upcoming teams. Reload the team and try again.'
+                }), 400
         if formation_id:
             formation = conn.execute('SELECT private_team FROM formations WHERE id = ?', (formation_id,)).fetchone()
             if formation is None:
@@ -703,12 +772,14 @@ def load_formation(formation_id):
 def gameday_view(formation_id):
     with get_db() as conn:
         formation = conn.execute('SELECT * FROM formations WHERE id = ?', (formation_id,)).fetchone()
+        all_players = conn.execute('SELECT id, status FROM players').fetchall()
+        match_date = formation_match_date(conn, formation_id)
     
     if formation:
         import json
         try:
             data = json.loads(formation['data'])
-            formations_data = data.get('formations', [])
+            formations_data = eligible_formations(data.get('formations', []), all_players, match_date)
             
             # Safely handle created_at field
             created_at = formation['created_at'][:16] if formation['created_at'] else 'Unknown'
@@ -728,6 +799,7 @@ def gameday_view(formation_id):
 @login_required
 def live_view(formation_id):
     import json as _json
+    today = datetime.now().date().isoformat()
     with get_db() as conn:
         row = conn.execute('''
             SELECT f.*, m.id as match_id, m.opponent, m.match_date, m.location,
@@ -736,7 +808,11 @@ def live_view(formation_id):
             LEFT JOIN matches m ON m.formation_id = f.id
             LEFT JOIN match_results mr ON mr.match_id = m.id
             WHERE f.id = ?
-        ''', (formation_id,)).fetchone()
+            ORDER BY m.match_date >= ? DESC,
+                     CASE WHEN m.match_date >= ? THEN m.match_date END ASC,
+                     m.match_date DESC
+            LIMIT 1
+        ''', (formation_id, today, today)).fetchone()
 
     if not row:
         return redirect(url_for('formations'))
@@ -763,14 +839,15 @@ def render_live_match(row, formation_id=None, formation_name=None, formations=No
     if row['motm_player_id']:
         referenced_ids.add(str(row['motm_player_id']))
 
+    with get_db() as conn:
+        all_players = conn.execute('SELECT id, name, position, status FROM players ORDER BY name').fetchall()
+    formations = eligible_formations(formations, all_players, row['match_date'])
     squad_ids = {
         str(player['id'])
         for formation in formations
         for player in formation.get('players', []) + formation.get('subs', []) + formation.get('squad', [])
         if player.get('id') is not None
     }
-    with get_db() as conn:
-        all_players = conn.execute('SELECT id, name, position, status FROM players ORDER BY name').fetchall()
     squad = [
         dict(player)
         for player in all_players
@@ -955,8 +1032,8 @@ def matches_overview():
             ORDER BY m.match_date
         ''', (today,)).fetchall()
         
-        # Get all players
-        all_players = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
+        # Upcoming selections exclude retired players in every category.
+        all_players = conn.execute("SELECT * FROM players WHERE status = 'active' ORDER BY name").fetchall()
     
     unavailable_by_match = load_saved_unavailability(matches_list)
 
@@ -996,7 +1073,7 @@ def matches_overview():
             match_dict['substitutes'] = substitutes
             match_dict['not_available'] = not_available
             match_dict['not_picked'] = not_picked
-            match_dict['team_selected'] = bool(selected_player_ids)
+            match_dict['team_selected'] = bool(playing or substitutes)
         else:
             match_dict['playing'] = []
             match_dict['substitutes'] = []
@@ -1050,8 +1127,7 @@ def matches_overview_text():
             ORDER BY m.match_date
         ''', (today,)).fetchall()
         
-        # Get all players
-        all_players = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
+        all_players = conn.execute("SELECT * FROM players WHERE status = 'active' ORDER BY name").fetchall()
     
     # Build text output
     text_output = "⚽ UPCOMING MATCHES - TEAM SELECTIONS ⚽\n"
@@ -1103,14 +1179,15 @@ def public_match_team(raw_match, all_players):
     """Resolve public team lists, including substitutes, from a saved formation."""
     import json
     match = dict(raw_match)
+    all_players = eligible_match_players(all_players, match['match_date'])
     playing_ids = set()
     if match['formation_data']:
         data = json.loads(match['formation_data'])
         for formation in data.get('formations', []):
             for player in formation.get('players', []) + formation.get('subs', []):
                 playing_ids.add(str(player['id']))
-    match['team_selected'] = bool(playing_ids)
     match['playing'] = [dict(p) for p in all_players if str(p['id']) in playing_ids]
+    match['team_selected'] = bool(match['playing'])
     match['not_playing'] = [
         dict(p) for p in all_players
         if match['team_selected'] and str(p['id']) not in playing_ids
@@ -1123,9 +1200,10 @@ def public_player(player_id):
     """Show upcoming non-playing dates without requiring a manager login."""
     today = datetime.now().strftime('%Y-%m-%d')
     with get_db() as conn:
-        player = conn.execute('SELECT id, name FROM players WHERE id = ?', (player_id,)).fetchone()
+        player = conn.execute("SELECT id, name FROM players WHERE id = ? AND status = 'active'", (player_id,)).fetchone()
         if player is None:
             abort(404)
+        all_players = conn.execute("SELECT * FROM players WHERE status = 'active' ORDER BY name").fetchall()
         upcoming = conn.execute('''
             SELECT m.match_date, m.opponent, m.location, f.data AS formation_data
             FROM matches m
@@ -1136,10 +1214,10 @@ def public_player(player_id):
     not_playing = []
     unselected = []
     for raw_match in upcoming:
-        match = public_match_team(raw_match, [player])
+        match = public_match_team(raw_match, all_players)
         if not match['team_selected']:
             unselected.append(match)
-        elif match['not_playing']:
+        elif any(p['id'] == player_id for p in match['not_playing']):
             not_playing.append(match)
     return render_template(
         'public_player.html', player=player, not_playing=not_playing,
@@ -1163,8 +1241,7 @@ def public_next_match():
             ORDER BY m.match_date ASC
         ''', (today,)).fetchall()
 
-        # Get all players
-        all_players = conn.execute('SELECT * FROM players ORDER BY name').fetchall()
+        all_players = conn.execute("SELECT * FROM players WHERE status = 'active' ORDER BY name").fetchall()
 
     if not upcoming:
         return render_template('public_next_match.html', match=None, upcoming_matches=[], players=all_players, version=VERSION)
@@ -1219,7 +1296,7 @@ def public_overview():
     
     return render_template('public_overview.html', 
                          matches=matches_with_teams, 
-                         players=all_players,
+                         players=eligible_match_players(all_players),
                          player_stats=stats_list,
                          version=VERSION)
 
