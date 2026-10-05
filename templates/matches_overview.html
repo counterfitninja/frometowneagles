@@ -48,9 +48,19 @@
         border: 2px solid #d4af37;
     }
 
-    .team-section.not-playing {
+    .team-section.substitutes {
+        background: #e9eef4;
+        border: 2px solid #536b83;
+    }
+
+    .team-section.unavailable {
         background: #f2dfdf;
         border: 2px solid #c41e3a;
+    }
+
+    .team-section.not-picked {
+        background: #f1f0ec;
+        border: 2px solid #9b9388;
     }
 
     .section-title {
@@ -63,8 +73,16 @@
         gap: 8px;
     }
 
-    .section-title.not-playing {
+    .section-title.unavailable {
         color: #c41e3a;
+    }
+
+    .section-title.substitutes {
+        color: #40586f;
+    }
+
+    .section-title.not-picked {
+        color: #625b53;
     }
 
     .players-grid {
@@ -84,9 +102,19 @@
         
     }
 
-    .player-chip.not-playing {
+    .player-chip.unavailable {
         background: #c41e3a;
         color: white;
+    }
+
+    .player-chip.substitutes {
+        background: #536b83;
+        color: white;
+    }
+
+    .player-chip.not-picked {
+        background: #dedbd4;
+        color: #393630;
     }
 
     .count-badge {
@@ -101,6 +129,16 @@
     .count-badge.red {
         background: #c41e3a;
         color: white;
+    }
+
+    .count-badge.slate {
+        background: #536b83;
+        color: white;
+    }
+
+    .count-badge.muted {
+        background: #dedbd4;
+        color: #393630;
     }
 
     .print-button {
@@ -177,11 +215,16 @@
             border-color: #d4af37;
         }
         
-        .team-section.not-playing {
+        .team-section.unavailable {
             background: #fdecea;
             border-color: #c41e3a;
         }
-        
+
+        .team-section.substitutes {
+            background: #e9eef4;
+            border-color: #536b83;
+        }
+
         .section-title {
             font-size: 20px;
             font-weight: 900;
@@ -201,7 +244,8 @@
             border: 2px solid rgba(0,0,0,0.1);
         }
         
-        .player-chip.not-playing {
+        .player-chip.unavailable,
+        .player-chip.substitutes {
             font-weight: 800;
         }
         
@@ -252,7 +296,7 @@
                 </div>
             </div>
 
-            {% if match.playing %}
+            {% if match.team_selected and match.playing %}
             <div class="team-section playing">
                 <div class="section-title">
                     ✅ Playing
@@ -268,15 +312,15 @@
             </div>
             {% endif %}
 
-            {% if match.not_playing %}
-            <div class="team-section not-playing">
-                <div class="section-title not-playing">
-                    ❌ Not Playing This Match
-                    <span class="count-badge red">{{ match.not_playing|length }}</span>
+            {% if match.team_selected and match.substitutes %}
+            <div class="team-section substitutes">
+                <div class="section-title substitutes">
+                    🪑 Substitutes
+                    <span class="count-badge slate">{{ match.substitutes|length }}</span>
                 </div>
                 <div class="players-grid">
-                    {% for player in match.not_playing %}
-                    <div class="player-chip not-playing">
+                    {% for player in match.substitutes %}
+                    <div class="player-chip substitutes">
                         {{ player.name }}{% if player.position == 'GK' %} 🧤{% endif %}
                     </div>
                     {% endfor %}
@@ -284,7 +328,39 @@
             </div>
             {% endif %}
 
-            {% if not match.playing and not match.not_playing %}
+            {% if match.team_selected and match.not_available %}
+            <div class="team-section unavailable">
+                <div class="section-title unavailable">
+                    🚫 Not Available
+                    <span class="count-badge red">{{ match.not_available|length }}</span>
+                </div>
+                <div class="players-grid">
+                    {% for player in match.not_available %}
+                    <div class="player-chip unavailable">
+                        {{ player.name }}{% if player.position == 'GK' %} 🧤{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if match.team_selected and match.not_picked %}
+            <div class="team-section not-picked">
+                <div class="section-title not-picked">
+                    Not Picked
+                    <span class="count-badge muted">{{ match.not_picked|length }}</span>
+                </div>
+                <div class="players-grid">
+                    {% for player in match.not_picked %}
+                    <div class="player-chip not-picked">
+                        {{ player.name }}{% if player.position == 'GK' %} 🧤{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if not match.team_selected %}
             <p style="color: #756d66; text-align: center; font-style: italic;">No team selected for this match</p>
             {% endif %}
         </div>
