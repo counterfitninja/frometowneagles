@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime, timezone, timedelta
 import os
 from functools import wraps
+from contextlib import nullcontext
 import hashlib
 
 app = Flask(__name__)
@@ -277,7 +278,7 @@ def load_saved_unavailability(matches):
     return {str(match['id']): list(by_date.get(match['match_date'], [])) for match in matches}
 
 
-def save_unavailability(matches, unavailable_by_match, active_player_ids):
+def save_unavailability(matches, unavailable_by_match, active_player_ids, connection=None):
     """Replace saved active-player unavailability for the given fixtures' dates."""
     by_date = {}
     for match in matches:
@@ -286,7 +287,7 @@ def save_unavailability(matches, unavailable_by_match, active_player_ids):
     if not by_date or not active_player_ids:
         return
     active = sorted(int(pid) for pid in active_player_ids)
-    with get_db() as conn:
+    with nullcontext(connection) if connection is not None else get_db() as conn:
         for match_date, player_ids in by_date.items():
             conn.execute(
                 'DELETE FROM player_unavailability WHERE unavailable_date = ? AND player_id IN (%s)'
@@ -296,7 +297,8 @@ def save_unavailability(matches, unavailable_by_match, active_player_ids):
                 'INSERT OR IGNORE INTO player_unavailability (player_id, unavailable_date) VALUES (?, ?)',
                 [(int(pid), match_date) for pid in sorted(player_ids, key=int)]
             )
-        conn.commit()
+        if connection is None:
+            conn.commit()
 
 
 @app.route('/players/<int:player_id>/unavailability', methods=['POST'])
@@ -1392,9 +1394,28 @@ def set_team_publication(match_id):
         conn.commit()
     return redirect(url_for('matches'))
 
+def current_season_bounds(today=None):
+    today = today or datetime.now().date()
+    year = today.year if today.month >= 9 else today.year - 1
+    return today.isoformat(), f'{year}-09-01', f'{year + 1}-09-01'
+
+
+def upcoming_season_matches(conn):
+    today, start, end = current_season_bounds()
+    return conn.execute('''
+        SELECT id, match_date, opponent, location, formation_id
+        FROM matches
+        WHERE match_date >= ? AND match_date >= ? AND match_date < ?
+        ORDER BY match_date, id
+    ''', (today, start, end)).fetchall()
+
+
 @app.route('/team-generator')
 @login_required
 def team_generator():
+    import json
+
+    regenerate = request.args.get('regenerate') == '1'
     with get_db() as conn:
         players_list = conn.execute('''
             SELECT * FROM players
@@ -1402,7 +1423,7 @@ def team_generator():
             ORDER BY name
         ''').fetchall()
         # Get matches without formations
-        matches_list = conn.execute('''
+        matches_list = upcoming_season_matches(conn) if regenerate else conn.execute('''
             SELECT id, match_date, opponent, location 
             FROM matches 
             WHERE formation_id IS NULL 
@@ -1415,10 +1436,12 @@ def team_generator():
         'team_generator.html',
         players=players,
         matches=matches,
-        selected_match_ids=[match['id'] for match in matches[:20]],
+        selected_match_ids=[match['id'] for match in (matches if regenerate else matches[:20])],
         invite_all_match_ids=[],
         unavailable_by_match=load_saved_unavailability(matches),
-        team_size=12,
+        team_size=get_setting('generator_team_size', 12),
+        goalkeeper_percentages=json.loads(get_setting('generator_keeper_percentages', '{}')),
+        regenerate=regenerate,
         num_games=len(matches) if matches else 4,
         version=VERSION
     )
@@ -1653,11 +1676,15 @@ def change_password():
     
     return redirect(url_for('settings', success='Password updated successfully and encrypted in database!'))
 
+@app.route('/team-generator/regenerate', methods=['POST'])
 @app.route('/team-generator/generate', methods=['POST'])
 @login_required
 def generate_teams():
+    import json
     import random
     from collections import defaultdict
+
+    regenerate = request.path == '/team-generator/regenerate'
     
     try:
         requested_num_games = int(request.form.get('num_games', 4))
@@ -1675,7 +1702,7 @@ def generate_teams():
             WHERE status = 'active'
             ORDER BY name
         ''').fetchall()
-        matches_list = conn.execute('''
+        matches_list = upcoming_season_matches(conn) if regenerate else conn.execute('''
             SELECT id, match_date, opponent, location
             FROM matches
             WHERE formation_id IS NULL
@@ -1708,25 +1735,32 @@ def generate_teams():
             unavailable_by_match=unavailable_by_match,
             team_size=team_size,
             num_games=requested_num_games,
+            regenerate=regenerate,
             goalkeeper_percentages={str(p['id']): request.form.get(f"goalkeeper_percentage_{p['id']}", '')
                                     for p in players if p['position'] == 'GK'},
             version=VERSION
         )
 
+    if regenerate and (not matches or set(submitted_match_ids) != available_match_ids):
+        return render_generator_error(
+            'Review all upcoming fixtures in the current season before generating again. '
+            'Reload Generate again if the schedule has changed.'
+        )
     if submitted_match_ids:
         invalid_match_ids = set(submitted_match_ids) - available_match_ids
         if invalid_match_ids:
             return render_generator_error('One or more selected games are no longer available. Refresh the page and try again.')
         if not selected_matches:
             return render_generator_error('Select at least one game to generate teams for.')
-        if len(selected_matches) > 20:
+        if len(selected_matches) > 20 and not regenerate:
             return render_generator_error('Select 20 games or fewer at a time.')
         num_games = len(selected_matches)
-        save_unavailability(selected_matches, unavailable_by_match, active_player_ids)
+        if not regenerate:
+            save_unavailability(selected_matches, unavailable_by_match, active_player_ids)
     else:
         num_games = requested_num_games
 
-    if num_games < 1 or num_games > 20:
+    if num_games < 1 or (num_games > 20 and not regenerate):
         return render_generator_error('Choose between 1 and 20 games.')
     if team_size < 9 or team_size > 15:
         return render_generator_error('Team size must be between 9 and 15 players.')
@@ -1946,6 +1980,60 @@ def generate_teams():
          'total': num_games}
         for keeper in goalkeepers
     ]
+
+    generator_settings = [
+        ('generator_team_size', str(team_size)),
+        ('generator_keeper_percentages', json.dumps(
+            {str(pid): value if value is not None else '' for pid, value in keeper_percentages.items()}
+        )),
+    ]
+    if regenerate:
+        positions = [(90, 50), (25, 25), (25, 50), (25, 75), (50, 25),
+                     (50, 50), (50, 75), (75, 35), (75, 65)]
+        with get_db() as conn:
+            # Hold the write lock while checking and replacing the season's teams.
+            conn.execute('BEGIN IMMEDIATE')
+            current_matches = [dict(match) for match in upcoming_season_matches(conn)]
+            if current_matches != selected_matches:
+                return render_generator_error(
+                    'The schedule or saved teams changed. Reload Generate again and try again.'
+                )
+            old_ids = {match['formation_id'] for match in selected_matches if match['formation_id']}
+            for team in teams:
+                formation = {
+                    'formations': [{
+                        'name': 'Formation 1',
+                        'players': [
+                            {'id': str(player['id']), 'name': player['name'],
+                             'position': player['position'], 'xPercent': positions[index][0],
+                             'yPercent': positions[index][1]}
+                            for index, player in enumerate(team['starters'])
+                        ],
+                        'subs': [
+                            {'id': str(player['id']), 'name': player['name'], 'position': player['position']}
+                            for player in team['subs']
+                        ],
+                    }]
+                }
+                cursor = conn.execute(
+                    'INSERT INTO formations (name, data, private_team) VALUES (?, ?, 1)',
+                    (team['match_label'], json.dumps(formation))
+                )
+                conn.execute('UPDATE matches SET formation_id = ?, team_published = 0 WHERE id = ?',
+                             (cursor.lastrowid, team['match_id']))
+                team['saved'] = True
+            for formation_id in old_ids:
+                conn.execute('''
+                    DELETE FROM formations WHERE id = ?
+                    AND NOT EXISTS (SELECT 1 FROM matches WHERE formation_id = ?)
+                ''', (formation_id, formation_id))
+            save_unavailability(selected_matches, unavailable_by_match, active_player_ids, connection=conn)
+            conn.executemany('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', generator_settings)
+            conn.commit()
+    else:
+        with get_db() as conn:
+            conn.executemany('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', generator_settings)
+            conn.commit()
     
     return render_template('team_generator.html', 
                          teams=teams, 
@@ -1957,6 +2045,10 @@ def generate_teams():
                          unavailable_by_match=unavailable_by_match,
                          team_size=team_size,
                          num_games=num_games,
+                         regenerate=regenerate,
+                         success=('Generated again and saved private drafts for every upcoming fixture '
+                                  'in the current season. Past fixtures and other seasons are unchanged.')
+                                 if regenerate else None,
                          goalkeeper_percentages={str(pid): value if value is not None else ''
                                                  for pid, value in keeper_percentages.items()},
                          version=VERSION)

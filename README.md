@@ -52,6 +52,16 @@ it again. Managers can still edit private teams. Existing selected teams remain
 published after upgrading. A custom-named formation without a fixture remains
 manager-only; linking it later also creates a private draft requiring publication.
 
+**Generate again** opens a review of every upcoming fixture in the current season,
+from **1 September to 31 August**, including fixtures with saved teams. Review
+the saved availability, team size and goalkeeper percentages, then confirm
+**Generate again** to replace those teams with newly balanced private drafts.
+The most recently used team size and keeper percentages are pre-filled.
+Past fixtures, other seasons, results and saved player availability are kept.
+Old formations are removed only if no other fixture uses them. New teams must
+be published again from Match Schedule. If availability or keeper targets cannot
+be satisfied, existing teams are left unchanged.
+
 In **More > Generate teams**, select fixtures and tick the players who cannot
 attend. Choose the generator's **More > Export availability (CSV)** to download
 the current attendance selections without generating teams. The spreadsheet has
