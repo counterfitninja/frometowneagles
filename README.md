@@ -60,7 +60,16 @@ date, opponent, location, position, and Available/Unavailable status. Unticked
 players are treated as available, matching the team generator.
 
 This exports the current form, not the saved playing/not-playing selections.
-Attendance ticks are not stored between visits; export before leaving the page.
+
+### Saved unavailability (kept when squads are reset)
+
+Availability ticks are saved against each **player and date**, not the fixture,
+so they survive saving or resetting squads. Ticks are saved automatically when you
+**Generate teams**, or via the generator's **More > Save availability to players**.
+They pre-fill the generator for any fixture on the same date. Manage them on the
+**Players** page under **Saved unavailability** (add/remove dates per player), and
+use **Export upcoming (CSV)** or **Export all, including past (CSV)** to download
+them, even when no fixtures are left without a squad.
 
 To restore them later, open the generator's **More** menu, choose the exported
 file under **Availability CSV to import**, then select **Import availability CSV**.
