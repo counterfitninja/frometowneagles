@@ -1,4 +1,5 @@
 import json
+import random
 import re
 import unittest
 from collections import Counter
@@ -105,6 +106,89 @@ class TeamGenerationTests(unittest.TestCase):
             for keeper_id in (1, 4):
                 self.assertGreater(counts[keeper_id], 10)
                 self.assertIn(20 - counts[keeper_id], (8, 9))
+
+    def test_rest_games_are_spread_without_changing_balanced_totals(self):
+        self.addCleanup(random.setstate, random.getstate())
+        self.prepare(games=12)
+        with application.get_db() as conn:
+            for index in range(12):
+                conn.execute('UPDATE matches SET match_date=? WHERE id=?',
+                             ((self.today + timedelta(weeks=index)).isoformat(), index + 1))
+            conn.commit()
+        for seed in range(10):
+            with self.subTest(seed=seed):
+                with patch.object(application, 'spread_rest_games'):
+                    random.seed(seed)
+                    original = self.teams(self.generate(games=12))
+                random.seed(seed)
+                teams = self.teams(self.generate(games=12))
+                counts = Counter(p['id'] for team in teams for p in team['starters'] + team['subs'])
+                self.assertLessEqual(max(counts.values()) - min(counts.values()), 1)
+                self.assertEqual(counts, Counter(
+                    p['id'] for team in original for p in team['starters'] + team['subs']))
+                self.assertEqual([team['starters'][0]['id'] for team in teams],
+                                 [team['starters'][0]['id'] for team in original])
+
+                def consecutive_rests(generated):
+                    return sum(len(
+                        {p['id'] for p in first['not_playing']} &
+                        {p['id'] for p in second['not_playing']}
+                    ) for first, second in zip(generated, generated[1:]))
+
+                self.assertLess(consecutive_rests(teams), consecutive_rests(original))
+                self.assertLessEqual(consecutive_rests(teams), 10)
+
+    def test_avoids_consecutive_rests_for_two_weekly_fixtures(self):
+        self.addCleanup(random.setstate, random.getstate())
+        self.prepare(games=2)
+        with application.get_db() as conn:
+            conn.execute('UPDATE matches SET match_date=? WHERE id=2',
+                         ((self.today + timedelta(weeks=1)).isoformat(),))
+            conn.commit()
+        for seed in range(10):
+            with self.subTest(seed=seed):
+                random.seed(seed)
+                teams = self.teams(self.generate(games=2))
+                self.assertFalse(
+                    {p['id'] for p in teams[0]['not_playing']} &
+                    {p['id'] for p in teams[1]['not_playing']}
+                )
+
+    def test_unavailability_and_invite_all_break_rest_streaks(self):
+        players = [{'id': pid} for pid in range(1, 5)]
+        for invite_all in (False, True):
+            with self.subTest(invite_all=invite_all):
+                plans = [
+                    {'eligible_players': players, 'invite_all_players': False},
+                    {'eligible_players': players if invite_all else players[:3],
+                     'invite_all_players': invite_all},
+                    {'eligible_players': players, 'invite_all_players': False},
+                ]
+                rosters = {0: [players[1]], 2: [players[2]]}
+                keepers = {0: players[0], 2: players[0]}
+                if not invite_all:
+                    rosters[1] = players[1:3]
+                    keepers[1] = players[0]
+                original = {index: roster[:] for index, roster in rosters.items()}
+                application.spread_rest_games(plans, keepers, rosters)
+                self.assertEqual(rosters, original)
+
+    def test_unavoidable_consecutive_rests_do_not_block_generation(self):
+        self.prepare(games=4)
+        with application.get_db() as conn:
+            conn.executemany('INSERT INTO players (id, name, position) VALUES (?, ?, ?)',
+                             [(pid, f'Player {pid}', 'MID') for pid in range(17, 25)])
+            conn.commit()
+        teams = self.teams(self.generate())
+        self.assertTrue(any(
+            {p['id'] for p in first['not_playing']} & {p['id'] for p in second['not_playing']}
+            for first, second in zip(teams, teams[1:])
+        ))
+        for team in teams:
+            selected = team['starters'] + team['subs']
+            self.assertEqual(len({p['id'] for p in selected}), 9)
+            self.assertEqual(len(team['not_playing']), 15)
+            self.assertEqual(sum(p['position'] == 'GK' for p in selected), 1)
 
     def test_keeper_fixtures_are_randomised_without_changing_targets(self):
         self.prepare(games=20)

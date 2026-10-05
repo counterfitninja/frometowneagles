@@ -1789,6 +1789,64 @@ def change_password():
     
     return redirect(url_for('settings', success='Password updated successfully and encrypted in database!'))
 
+def spread_rest_games(game_plans, assigned_keepers, outfield_teams):
+    # Exchange outfield places without changing anyone's total games or keeper targets.
+    normal_games = sorted(outfield_teams)
+    resting_ids = {}
+    for index, plan in enumerate(game_plans):
+        eligible_ids = {player['id'] for player in plan['eligible_players']}
+        selected_ids = (
+            eligible_ids if plan['invite_all_players'] else
+            {assigned_keepers[index]['id']} | {player['id'] for player in outfield_teams[index]}
+        )
+        resting_ids[index] = eligible_ids - selected_ids
+
+    def rest_pair_change(player_id, first, second):
+        affected_edges = {first - 1, first, second - 1, second}
+        change = 0
+        for edge in affected_edges:
+            if edge < 0 or edge + 1 >= len(game_plans):
+                continue
+            before = [player_id in resting_ids[index] for index in (edge, edge + 1)]
+            after = [
+                not rested if index in (first, second) else rested
+                for index, rested in zip((edge, edge + 1), before)
+            ]
+            change += int(all(after)) - int(all(before))
+        return change
+
+    while True:
+        best_change = 0
+        best_swap = None
+        for offset, first in enumerate(normal_games):
+            for second in normal_games[offset + 1:]:
+                outgoing_candidates = [
+                    (player, rest_pair_change(player['id'], first, second))
+                    for player in outfield_teams[first] if player['id'] in resting_ids[second]
+                ]
+                incoming_candidates = [
+                    (player, rest_pair_change(player['id'], first, second))
+                    for player in outfield_teams[second] if player['id'] in resting_ids[first]
+                ]
+                for outgoing, outgoing_change in outgoing_candidates:
+                    for incoming, incoming_change in incoming_candidates:
+                        change = outgoing_change + incoming_change
+                        if change < best_change:
+                            best_change = change
+                            best_swap = (first, second, outgoing, incoming)
+        if best_swap is None:
+            break
+        first, second, outgoing, incoming = best_swap
+        outfield_teams[first].remove(outgoing)
+        outfield_teams[first].append(incoming)
+        outfield_teams[second].remove(incoming)
+        outfield_teams[second].append(outgoing)
+        resting_ids[first].remove(incoming['id'])
+        resting_ids[first].add(outgoing['id'])
+        resting_ids[second].remove(outgoing['id'])
+        resting_ids[second].add(incoming['id'])
+
+
 @app.route('/team-generator/regenerate', methods=['POST'])
 @app.route('/team-generator/generate', methods=['POST'])
 @login_required
@@ -2023,6 +2081,8 @@ def generate_teams():
                 break
         else:
             return render_generator_error('Unable to fill every team with the current availability. Review availability and try again.')
+
+    spread_rest_games(game_plans, assigned_keepers, outfield_teams)
 
     for game_index, plan in enumerate(game_plans):
         eligible_players = plan['eligible_players']
