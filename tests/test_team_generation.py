@@ -279,6 +279,21 @@ class TeamGenerationTests(unittest.TestCase):
         self.assertEqual(sum(p['position'] == 'GK' for p in selected), 1)
         self.assertEqual(teams[3]['not_playing'], [])
 
+    def test_underfilled_team_includes_and_highlights_all_available_players(self):
+        self.prepare(games=1)
+        html = self.generate([('unavailable_for_1', str(player_id))
+                              for player_id in range(2, 10)], games=1)
+        teams = self.teams(html)
+
+        selected = teams[0]['starters'] + teams[0]['subs']
+        self.assertEqual(len(selected), 8)
+        self.assertEqual({player['id'] for player in selected}, {1, *range(10, 17)})
+        self.assertTrue(teams[0]['underfilled'])
+        self.assertEqual(teams[0]['not_playing'], [])
+        self.assertIn('is-underfilled', html)
+        self.assertIn('Only 8 of the target 9 players are available', html)
+        self.assertIn('all available players have been included', html)
+
     def test_rounds_targets_to_whole_games_and_accepts_zero(self):
         self.prepare(games=3)
         teams = self.teams(self.generate([
