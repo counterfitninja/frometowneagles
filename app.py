@@ -1986,7 +1986,7 @@ def spread_rest_games(game_plans, assigned_keepers, outfield_teams):
     for index, plan in enumerate(game_plans):
         eligible_ids = {player['id'] for player in plan['eligible_players']}
         selected_ids = (
-            eligible_ids if plan['invite_all_players'] else
+            eligible_ids if plan.get('include_all_players', plan['invite_all_players']) else
             {assigned_keepers[index]['id']} | {player['id'] for player in outfield_teams[index]}
         )
         resting_ids[index] = eligible_ids - selected_ids
@@ -2139,21 +2139,13 @@ def generate_teams():
         unavailable_ids = set(unavailable_by_match.get(match_key, [])) if match_key else set()
         eligible_players = [p for p in players if str(p['id']) not in unavailable_ids]
         invite_all_players = bool(game_match and match_key in invite_all_match_ids)
-        game_team_size = len(eligible_players) if invite_all_players else team_size
+        underfilled = len(eligible_players) < team_size
+        include_all_players = invite_all_players or underfilled
+        game_team_size = len(eligible_players) if include_all_players else team_size
         game_label = (
             f"{game_match['match_date']} vs {game_match['opponent']}"
             if game_match else f"Game {game + 1}"
         )
-
-        if game_team_size < 9:
-            return render_generator_error(
-                f'{game_label} has only {len(eligible_players)} available players; at least 9 are needed.'
-            )
-        if len(eligible_players) < game_team_size:
-            return render_generator_error(
-                f'{game_label} has only {len(eligible_players)} available players; '
-                f'{game_team_size} are needed after exclusions.'
-            )
 
         eligible_gks = [p for p in eligible_players if p['position'] == 'GK']
         if not eligible_gks:
@@ -2165,6 +2157,8 @@ def generate_teams():
             'eligible_players': eligible_players,
             'eligible_gks': eligible_gks,
             'invite_all_players': invite_all_players,
+            'include_all_players': include_all_players,
+            'underfilled': underfilled,
             'team_size': game_team_size,
         })
 
@@ -2179,7 +2173,7 @@ def generate_teams():
     if supplied and (len(supplied) != len(goalkeepers) or
                      any(value < 0 or value > 100 for value in supplied) or sum(supplied) != 100):
         return render_generator_error('Set every goalkeeper percentage between 0 and 100, totalling 100%, or leave all blank for equal rotation.')
-    normal_games = [index for index, plan in enumerate(game_plans) if not plan['invite_all_players']]
+    normal_games = [index for index, plan in enumerate(game_plans) if not plan['include_all_players']]
     weights = {p['id']: keeper_percentages[p['id']] if supplied else 100 / len(goalkeepers)
                for p in goalkeepers}
     exact_targets = {pid: len(normal_games) * weight / 100 for pid, weight in weights.items()}
@@ -2234,7 +2228,7 @@ def generate_teams():
     # Reserve all mandatory selections before rotating the remaining places.
     # Otherwise a keeper can gain extra games before their later in-goal assignments.
     for game_index, plan in enumerate(game_plans):
-        if plan['invite_all_players']:
+        if plan['include_all_players']:
             for player in plan['eligible_players']:
                 player_game_count[player['id']] += 1
         else:
@@ -2276,7 +2270,7 @@ def generate_teams():
 
     for game_index, plan in enumerate(game_plans):
         eligible_players = plan['eligible_players']
-        if plan['invite_all_players']:
+        if plan['include_all_players']:
             full_team = eligible_players[:]
             gk_in_starters = random.choice(plan['eligible_gks'])
         else:
@@ -2316,7 +2310,9 @@ def generate_teams():
                 f"{game_match['match_date']} - vs {game_match['opponent']}"
                 if game_match else None
             ),
-            'invite_all_players': plan['invite_all_players']
+            'invite_all_players': plan['invite_all_players'],
+            'underfilled': plan['underfilled'],
+            'target_team_size': team_size,
         })
     
     # Count missed games only where a player was available to attend.
