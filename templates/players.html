@@ -6,6 +6,7 @@
 {% set parent_confirmations = availability_confirmations() %}
 <div class="card">
     <h2>👥 Player Management</h2>
+    <p style="margin-bottom: 18px;"><a class="btn" href="{{ url_for('plan_player_absence') }}">Plan a player absence</a> &mdash; Remove a player for a date range and review replacements in saved squads.</p>
     <p style="color: #756d66; margin: -8px 0 20px;">Retire a player to keep their historic stats while removing them from future formations, result entry, and team generation.</p>
 
     <section aria-labelledby="player-game-summary-title" style="margin-bottom: 28px;">

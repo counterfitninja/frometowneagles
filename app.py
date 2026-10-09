@@ -6,6 +6,8 @@ from functools import wraps
 from contextlib import nullcontext
 import hashlib
 import secrets
+import json
+import hmac
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'change-this-in-production')
@@ -18,7 +20,7 @@ def add_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     if request.path == '/static/sw.js':
         response.headers['Service-Worker-Allowed'] = '/'
-    if request.path.startswith(('/team-generator', '/public/players/')):
+    if request.path.startswith(('/team-generator', '/public/players/', '/players/absence')):
         response.headers.setdefault('Cache-Control', 'private, no-store')
     return response
 
@@ -388,6 +390,182 @@ def change_player_unavailability(conn, player_id, unavailable_date, remove=False
             (player_id, unavailable_date))
     if cursor.rowcount and unavailable_date >= datetime.now().date().isoformat():
         conn.execute('DELETE FROM player_availability_confirmations WHERE player_id = ?', (player_id,))
+
+
+def absence_review(conn, player_id, start_date, end_date):
+    active_players = [dict(row) for row in conn.execute(
+        "SELECT * FROM players WHERE status = 'active' ORDER BY name, id"
+    )]
+    player = next((p for p in active_players if p['id'] == player_id), None)
+    if player is None:
+        raise ValueError('Choose an active player.')
+    matches = [dict(row) for row in conn.execute('''
+        SELECT m.*, f.data AS formation_data
+        FROM matches m LEFT JOIN formations f ON f.id = m.formation_id
+        WHERE m.match_date BETWEEN ? AND ? ORDER BY m.match_date, m.id
+    ''', (start_date, end_date))]
+    unavailable = {}
+    for row in conn.execute(
+        'SELECT player_id, unavailable_date FROM player_unavailability WHERE unavailable_date BETWEEN ? AND ?',
+        (start_date, end_date)
+    ):
+        unavailable.setdefault(row['unavailable_date'], set()).add(str(row['player_id']))
+    today = datetime.now().date().isoformat()
+    _, season_start, season_end = current_season_bounds()
+    selection_counts = {str(p['id']): 0 for p in active_players}
+    for row in conn.execute('''
+        SELECT f.data FROM matches m JOIN formations f ON f.id = m.formation_id
+        WHERE m.match_date >= ? AND m.match_date >= ? AND m.match_date < ?
+    ''', (today, season_start, season_end)):
+        data = json.loads(row['data'])
+        ids = {
+            str(p['id']) for formation in data.get('formations', [])
+            for key in ('players', 'subs', 'squad') for p in formation.get(key, [])
+        }
+        for pid in ids & selection_counts.keys():
+            selection_counts[pid] += 1
+    for match in matches:
+        data = json.loads(match['formation_data']) if match['formation_data'] else {}
+        selections = [
+            p for formation in data.get('formations', [])
+            for key in ('players', 'subs', 'squad') for p in formation.get(key, [])
+        ]
+        selected_ids = {str(p['id']) for p in selections}
+        absent_slots = [p for p in selections if str(p['id']) == str(player_id)]
+        match['affected'] = bool(absent_slots)
+        match['squad_size'] = len(selected_ids & selection_counts.keys())
+        match['needs_keeper'] = any(
+            p.get('position', player['position']) == 'GK' for p in absent_slots
+        )
+        match['candidates'] = sorted([
+            dict(p, selections=selection_counts[str(p['id'])],
+                 same_position=p['position'] == player['position'])
+            for p in active_players
+            if p['id'] != player_id and str(p['id']) not in selected_ids
+            and str(p['id']) not in unavailable.get(match['match_date'], set())
+            and (not match['needs_keeper'] or p['position'] == 'GK')
+        ], key=lambda p: (not p['same_position'], p['selections'], p['name'].casefold(), p['id']))
+    snapshot = json.dumps(
+        {'player': player, 'players': active_players, 'start': start_date, 'end': end_date, 'matches': matches,
+         'unavailable': {date: sorted(ids) for date, ids in unavailable.items()}},
+        sort_keys=True
+    )
+    revision = hmac.new(app.secret_key.encode(), snapshot.encode(), hashlib.sha256).hexdigest()
+    return player, matches, revision
+
+
+def replace_absent_player(data, player_id, replacement):
+    """Preserve each pitch slot and bench role across all team variations."""
+    for formation in data.get('formations', []):
+        for key in ('players', 'subs', 'squad'):
+            if key not in formation:
+                continue
+            updated = []
+            for slot in formation[key]:
+                if str(slot['id']) != str(player_id):
+                    updated.append(slot)
+                elif replacement:
+                    position = replacement['position']
+                    if position == 'GK' and slot.get('position') not in (None, 'GK'):
+                        position = 'Outfield'
+                    updated.append({
+                        **slot, 'id': str(replacement['id']), 'name': replacement['name'],
+                        'position': position,
+                    })
+            formation[key] = updated
+    return data
+
+
+@app.route('/players/absence', methods=['GET', 'POST'])
+@login_required
+def plan_player_absence():
+    today = datetime.now().date()
+    values = request.form if request.method == 'POST' else request.args
+    start_raw = values.get('start_date', today.isoformat())
+    end_raw = values.get('end_date', start_raw)
+    player_raw = values.get('player_id', '')
+    error = None
+    status = 200
+    reviewed_player, reviewed_matches, revision = None, [], None
+    if request.method == 'POST':
+        token = request.form.get('csrf_token', '')
+        if not token or not secrets.compare_digest(token, session.get('clear_squads_token', '')):
+            abort(400, description='Invalid absence request. Reload the page and try again.')
+    with get_db() as conn:
+        if request.method == 'POST':
+            conn.execute('BEGIN IMMEDIATE')
+        active_players = conn.execute(
+            "SELECT * FROM players WHERE status = 'active' ORDER BY name, id"
+        ).fetchall()
+        if values:
+            try:
+                start = datetime.strptime(start_raw, '%Y-%m-%d').date()
+                end = datetime.strptime(end_raw, '%Y-%m-%d').date()
+                if start.isoformat() != start_raw or end.isoformat() != end_raw:
+                    raise ValueError('Choose valid dates.')
+                if start < today or end < start:
+                    raise ValueError('Choose an upcoming date range, with the end on or after the start.')
+                if (end - start).days >= 366:
+                    raise ValueError('Choose a date range of up to 366 days.')
+                if not player_raw.isdecimal():
+                    raise ValueError('Choose an active player.')
+                reviewed_player, reviewed_matches, revision = absence_review(
+                    conn, int(player_raw), start_raw, end_raw
+                )
+                if request.method == 'POST':
+                    if not secrets.compare_digest(values.get('revision', ''), revision):
+                        status = 409
+                        raise ValueError('The schedule, squads or availability changed. Review the updated choices and save again.')
+                    decisions = {}
+                    for match in reviewed_matches:
+                        if not match['affected']:
+                            continue
+                        choice = values.get(f"replacement_{match['id']}")
+                        if choice == 'none':
+                            decisions[match['id']] = None
+                        else:
+                            candidate = next(
+                                (p for p in match['candidates'] if str(p['id']) == choice), None
+                            )
+                            if candidate is None:
+                                raise ValueError('Choose an available replacement or do not bring anyone extra for each affected fixture.')
+                            decisions[match['id']] = candidate
+                    # Validate every decision before changing either availability or squads.
+                    date = start
+                    while date <= end:
+                        change_player_unavailability(conn, int(player_raw), date.isoformat())
+                        date += timedelta(days=1)
+                    for match in reviewed_matches:
+                        if not match['affected']:
+                            continue
+                        data = replace_absent_player(
+                            json.loads(match['formation_data']), int(player_raw), decisions[match['id']]
+                        )
+                        # Copy rather than edit a formation that other fixtures may share.
+                        cursor = conn.execute(
+                            'INSERT INTO formations (name, data, private_team) VALUES (?, ?, 1)',
+                            (f"{match['match_date']} - vs {match['opponent']}", json.dumps(data))
+                        )
+                        conn.execute(
+                            'UPDATE matches SET formation_id = ?, team_published = 0 WHERE id = ?',
+                            (cursor.lastrowid, match['id'])
+                        )
+                    conn.commit()
+                    return redirect(url_for(
+                        'plan_player_absence', saved=1, changed=len(decisions),
+                        player_id=player_raw, start_date=start_raw, end_date=end_raw
+                    ))
+            except ValueError as exc:
+                error = str(exc)
+                if status == 200:
+                    status = 400
+    return render_template(
+        'player_absence.html', players=active_players, player=reviewed_player,
+        matches=reviewed_matches, revision=revision, player_id=player_raw,
+        start_date=start_raw, end_date=end_raw, today=today.isoformat(),
+        error=error, saved=request.method == 'GET' and request.args.get('saved') == '1',
+        changed=request.args.get('changed', '0'), version=VERSION
+    ), status
 
 
 @app.template_global()

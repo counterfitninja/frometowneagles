@@ -101,6 +101,33 @@ players are treated as available, matching the team generator.
 
 This exports the current form, not the saved playing/not-playing selections.
 
+### Plan a player absence
+
+Open **Players > Plan a player absence** (also under the navigation's **More**
+menu). Choose an active player and the first and last unavailable dates, then
+**Review affected games**. Both dates are included, up to 366 days at a time.
+No reason or medical details are stored.
+
+For each saved squad containing the player, choose an available replacement or
+leave **Don't bring anyone extra** selected to take one fewer player. Suggestions
+exclude retired, unavailable and already-selected players. They put the same
+position first, then fewer saved upcoming selections in the current season.
+These counts do not include your proposed changes. Goalkeeping places only offer
+goalkeepers; taking no extra player may require arranging cover in **Plan team**.
+A replacement inherits the removed player's pitch locations and bench places
+across every formation.
+
+**Save absence and squad changes** saves all dates, including dates without games,
+so fixtures added later inherit the absence. It updates only affected squads,
+as **private drafts**, which must be published again from **Matches**. Other
+fixtures, shared original formations and past results are unchanged. If squads
+or availability change during review, the screen requires a fresh review before
+saving. This screen requires an online connection.
+
+Remove individual unavailable dates under **Players > Saved unavailability** if
+plans change. Removing dates does not restore earlier squads; edit the team to
+bring the player back.
+
 ### Saved unavailability (kept when squads are reset)
 
 Availability ticks are saved against each **player and date**, not the fixture,

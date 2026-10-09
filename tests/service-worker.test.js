@@ -103,7 +103,7 @@ test('login redirects cannot replace cached manager pages', async () => {
 
 test('API, authentication and uploads always bypass the offline cache', async () => {
     const worker = setup();
-    for (const pathname of ['/api/matches/1/result', '/login', '/logout']) {
+    for (const pathname of ['/api/matches/1/result', '/login', '/logout', '/players/absence']) {
         assert.equal(await worker.request(pathname), undefined);
     }
     assert.equal(await worker.request('/api/matches/1/result', 'cors', 'POST'), undefined);
