@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Plan a player absence - {{ team_title }}{% endblock %}
+{% block extra_css %}
+<style>
+    .absence-intro { max-width: 66ch; margin-bottom: 22px; line-height: 1.6; }
+    .absence-fields { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
+    .absence-notice { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2); margin-bottom: 20px; line-height: 1.6; }
+    .absence-fixture { display: grid; grid-template-columns: 100px 1fr; gap: 20px; padding: 22px 0; border-top: 1px solid var(--line); }
+    .absence-date { font: 700 15px Consolas, monospace; color: var(--red-dark); }
+    .absence-fixture h3 { margin-bottom: 6px; font-size: 24px; }
+    .absence-fixture p { margin-bottom: 12px; line-height: 1.5; }
+    .absence-fixture select { max-width: 100%; }
+    .absence-fixture .absence-change { color: var(--ink) !important; font-weight: 700; }
+    .absence-alert { color: var(--red-dark) !important; margin-bottom: 18px; }
+    .absence-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+    @media (max-width: 640px) {
+        .absence-fields, .absence-fixture { grid-template-columns: 1fr; }
+        .absence-fixture { gap: 8px; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<section class="card">
+    <h2>Plan a player absence</h2>
+    <p class="absence-intro">Keep the player in your squad, but leave them out while they are away. Review each game and choose who to bring instead, or take one fewer player. No medical details are needed.</p>
+    {% if error %}<p role="alert" class="absence-alert">{{ error }}</p>{% endif %}
+    {% if saved %}
+    <div role="status" class="absence-notice">
+        Unavailable dates saved for {{ player.name if player else 'the player' }}.
+        {{ changed }} squad(s) updated as private drafts. Publish changed teams from <a href="{{ url_for('matches') }}">Matches</a> when ready.
+    </div>
+    {% endif %}
+    <form method="GET">
+        <div class="absence-fields">
+            <div class="form-group">
+                <label for="absence-player">Player</label>
+                <select id="absence-player" name="player_id" required>
+                    <option value="">Choose a player</option>
+                    {% for p in players %}
+                    <option value="{{ p.id }}" {% if player_id == p.id|string %}selected{% endif %}>{{ p.name }} ({{ p.position }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="absence-start">First unavailable date</label>
+                <input id="absence-start" type="date" name="start_date" value="{{ start_date }}" min="{{ today }}" required>
+            </div>
+            <div class="form-group">
+                <label for="absence-end">Last unavailable date</label>
+                <input id="absence-end" type="date" name="end_date" value="{{ end_date }}" min="{{ today }}" required>
+            </div>
+        </div>
+        <p style="margin-bottom: 16px;">Both dates are included, up to 366 days at a time. The player stays unavailable for fixtures added later within these dates too.</p>
+        <button class="btn" type="submit">Review affected games</button>
+    </form>
+</section>
+{% if player and revision %}
+<section class="card" aria-labelledby="absence-review-title">
+    <h2 id="absence-review-title">{{ player.name }}: games to review</h2>
+    <p class="absence-intro">{{ start_date|ukdate }} to {{ end_date|ukdate }}. Nothing changes until you save. Only games where {{ player.name }} is selected will have their squads changed.</p>
+    <div class="absence-notice">
+        Changed teams become <strong>private drafts</strong>, including teams already published.
+        Other games and past results stay unchanged. Removing these unavailable dates later will not restore the old selections.
+    </div>
+    <p class="absence-intro">Suggestions put the same position first, then players selected for fewer upcoming games this season. Counts reflect saved squads, not these proposed changes. Goalkeeping places only offer goalkeepers.</p>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ clear_squads_token() }}">
+        <input type="hidden" name="revision" value="{{ revision }}">
+        <input type="hidden" name="player_id" value="{{ player.id }}">
+        <input type="hidden" name="start_date" value="{{ start_date }}">
+        <input type="hidden" name="end_date" value="{{ end_date }}">
+        {% for match in matches %}
+        <article class="absence-fixture" data-match-id="{{ match.id }}">
+            <div class="absence-date">{{ match.match_date|ukdate }}</div>
+            <div>
+                <h3>vs {{ match.opponent }}</h3>
+                <p>{{ match.location or 'Location to be confirmed' }}</p>
+                {% if match.affected %}
+                <p class="absence-change">{{ match.squad_size }} selected &rarr; {{ match.squad_size - 1 }} without a replacement</p>
+                <label for="replacement-{{ match.id }}">Who should take {{ player.name }}'s place?</label>
+                <select id="replacement-{{ match.id }}" name="replacement_{{ match.id }}" required>
+                    <option value="none">Don't bring anyone extra &mdash; take {{ match.squad_size - 1 }}</option>
+                    {% for candidate in match.candidates %}
+                    <option value="{{ candidate.id }}">{{ candidate.name }} ({{ candidate.position }}) &mdash; {{ candidate.selections }} upcoming selection(s){% if candidate.same_position %}, same position{% endif %}{% if loop.first %}, first suggestion{% endif %}</option>
+                    {% endfor %}
+                </select>
+                {% if not match.candidates %}
+                <p style="margin-top: 10px;">No available {{ 'goalkeepers' if match.needs_keeper else 'players' }} outside this squad. Leave the place empty and review the team in Plan team.</p>
+                {% endif %}
+                {% if match.needs_keeper %}<p style="margin-top: 10px;">This removes a goalkeeping place. If you take no extra player, arrange cover in Plan team before publishing.</p>{% endif %}
+                {% elif match.formation_data %}
+                <p>{{ player.name }} is not selected. Squad stays unchanged; unavailable date will be saved.</p>
+                {% else %}
+                <p>No saved team. Unavailable date will be saved for future team generation.</p>
+                {% endif %}
+            </div>
+        </article>
+        {% else %}
+        <p class="absence-intro">No fixtures in these dates. Save the absence now so the player is unavailable if games are added later.</p>
+        {% endfor %}
+        <div class="absence-actions">
+            <button type="submit" class="btn btn-success">Save absence and squad changes</button>
+            <a class="btn" href="{{ url_for('players') }}">Cancel</a>
+        </div>
+    </form>
+</section>
+{% endif %}
+{% endblock %}
