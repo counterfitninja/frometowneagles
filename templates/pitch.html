@@ -551,6 +551,7 @@
             <button onclick="viewGameDay()" class="btn" style="flex:1; font-weight:bold; background:#1e1f28;">🖨️ Game Day View</button>
             <button onclick="viewLive()" class="btn" style="flex:1; font-weight:bold; background:#c41e3a;">🔴 Live</button>
         </div>
+        <p id="autosaveStatus" role="status" aria-live="polite" style="width:100%; margin:0; color:#756d66; font-size:12px;">Changes save automatically</p>
     </div>
     
     <script>
@@ -677,6 +678,8 @@
     let loadedMatchId = null;  // Track if we loaded an existing match
     let loadedMatchName = null;  // Store original match name
     let loadedFormationId = null;  // Track formation ID for updates
+    let autosaveTimer = null;
+    let saveQueue = Promise.resolve();
     
     // Store all available players
     const allPlayers = [
@@ -793,6 +796,7 @@
             
             draggedPlayer = null;
         }
+        scheduleAutosave();
     });
 
     pitch.addEventListener('drop', (e) => {
@@ -819,6 +823,7 @@
                 player.xPercent = xPercent;
                 player.yPercent = yPercent;
             }
+            scheduleAutosave();
             return;
         }
         
@@ -860,6 +865,7 @@
         // Create player on pitch
         addPlayerToPitch(draggedPlayer, x, y);
         draggedPlayer = null;
+        scheduleAutosave();
     });
     
     // Touch support for pitch - tap to add player at center
@@ -926,6 +932,7 @@
         // Create player on pitch
         addPlayerToPitch(draggedPlayer, x, y);
         draggedPlayer = null;
+        scheduleAutosave();
         
         // Clear selections
         document.querySelectorAll('.player-item').forEach(item => {
@@ -1039,6 +1046,7 @@
                 p.xPercent = xPercent;
                 p.yPercent = yPercent;
             }
+            scheduleAutosave();
         });
 
         // Double click to remove - move to bench
@@ -1057,6 +1065,7 @@
             if (removedPlayer && !subsOnBench.find(p => String(p.id) === String(removedPlayer.id))) {
                 addPlayerToBench(removedPlayer);
             }
+            scheduleAutosave();
         });
 
         pitch.appendChild(playerDiv);
@@ -1099,6 +1108,7 @@
                 }
             });
             refreshSubBadges();
+            scheduleAutosave();
         });
 
         bench.appendChild(subDiv);
@@ -1131,6 +1141,7 @@
         availablePlayers.forEach(player => {
             addPlayerToBench(player);
         });
+        scheduleAutosave();
     }
 
     function clearPitch() {
@@ -1147,6 +1158,7 @@
         matchFormations[currentFormationIndex].players = [];
         matchFormations[currentFormationIndex].subs = [];
         updateFormationsOverview();
+        scheduleAutosave();
     }
 
     function changeFormation() {
@@ -1190,6 +1202,7 @@
         });
 
         updateFormationsOverview();
+        scheduleAutosave();
     }
 
     function addFormation() {
@@ -1214,6 +1227,7 @@
         // Update dropdown and overview panel
         updateFormationDropdown();
         updateFormationsOverview();
+        scheduleAutosave();
 
         // Keep current players on display (since we copied them)
         // No need to clear - they're already showing
@@ -1230,6 +1244,7 @@
         
         updateFormationDropdown();
         changeFormation();
+        scheduleAutosave();
     }
     
     function updateFormationDropdown() {
@@ -1283,6 +1298,7 @@
         if (newName && newName.trim()) {
             matchFormations[currentFormationIndex].name = newName.trim();
             updateFormationDropdown();
+            scheduleAutosave();
         }
     }
     
@@ -1480,6 +1496,7 @@
             matchFormations[currentFormationIndex].subs = [...subsOnBench];
             
             closeQuickLoadModal();
+            scheduleAutosave();
             alert(`⚡ "${save.name}" loaded!`);
         } catch (error) {
             alert('Error loading quick save: ' + error.message);
@@ -1507,71 +1524,68 @@
         document.getElementById('formationModal').style.display = 'none';
     }
 
-    async function confirmSave(isUpdate = false) {
-        let name;
-        
-        if (loadedMatchName) {
-            // Use the loaded match name
-            name = loadedMatchName;
-        } else {
-            // Generate a default name based on current date if no match name
-            const now = new Date();
-            name = `Formation ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+    function scheduleAutosave() {
+        clearTimeout(autosaveTimer);
+        document.getElementById('autosaveStatus').textContent = 'Unsaved changes';
+        autosaveTimer = setTimeout(() => {
+            autosaveTimer = null;
+            persistFormation(false);
+        }, 800);
+    }
+
+    async function confirmSave() {
+        await persistFormation(true);
+    }
+
+    function persistFormation(showSuccess) {
+        if (showSuccess) {
+            clearTimeout(autosaveTimer);
+            autosaveTimer = null;
         }
 
         // Save current formation first
         matchFormations[currentFormationIndex].players = [...playersOnPitch];
         matchFormations[currentFormationIndex].subs = [...subsOnBench];
 
-        const data = JSON.stringify({
-            formations: matchFormations
-        });
+        saveQueue = saveQueue.catch(() => {}).then(async () => {
+            const hasSelection = matchFormations.some(f => f.players.length || f.subs.length);
+            if (!showSuccess && !loadedFormationId && !loadedMatchId && !hasSelection) return;
 
-        try {
-            const requestBody = { name, data };
-            
-            // If we have loadedFormationId, we're updating an existing formation
-            if (loadedFormationId) {
-                requestBody.id = loadedFormationId;
-                console.log('Updating existing formation:', loadedFormationId);
-            }
-            
-            // If we have loadedMatchId, we're linking to a match
-            if (loadedMatchId) {
-                requestBody.match_id = loadedMatchId;
-                console.log('Linking to match:', loadedMatchId);
-            }
-            
-            console.log('Saving formation:', requestBody);
-            
-            const response = await fetch('/formations/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
-            });
+            const status = document.getElementById('autosaveStatus');
+            status.textContent = 'Saving…';
+            const now = new Date();
+            const requestBody = {
+                name: loadedMatchName || `Formation ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+                data: JSON.stringify({ formations: matchFormations })
+            };
+            if (loadedFormationId) requestBody.id = loadedFormationId;
+            if (loadedMatchId) requestBody.match_id = loadedMatchId;
 
-            const result = await response.json();
-            console.log('Save result:', result);
-            
-            if (result.success) {
-                // Update loadedFormationId if this was a new formation
-                if (!loadedFormationId && result.id) {
-                    loadedFormationId = result.id;
-                    console.log('Formation saved with ID:', loadedFormationId);
+            try {
+                const response = await fetch('/formations/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+                const result = await response.json();
+                if (!response.ok || !result.success) {
+                    throw new Error(result.error || 'The formation could not be saved.');
                 }
-                
-                closeModal();
-                document.getElementById('formationName').value = "";
-                
-                // Show success notification
-                showSaveNotification();
-            } else {
-                alert('Failed to save: ' + (result.error || 'Unknown error'));
+                if (!loadedFormationId && result.id) loadedFormationId = result.id;
+                if (!loadedMatchName) loadedMatchName = requestBody.name;
+                status.textContent = autosaveTimer ? 'Unsaved changes' : 'All changes saved';
+                if (showSuccess) {
+                    closeModal();
+                    document.getElementById('formationName').value = '';
+                    showSaveNotification();
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                status.textContent = 'Autosave failed. Use Save Match to retry.';
+                if (showSuccess) alert('Error saving formation: ' + error.message);
             }
-        } catch (error) {
-            console.error('Save error:', error);
-            alert('Error saving formation: ' + error.message);
-        }
+        });
+        return saveQueue;
     }
 
     function showSaveNotification() {
@@ -1698,6 +1712,9 @@
         
         const savedFormation = sessionStorage.getItem('loadFormation');
         if (savedFormation) {
+            const storedFormationId = sessionStorage.getItem('loadedMatchId');
+            if (storedFormationId) loadedFormationId = parseInt(storedFormationId, 10);
+            loadedMatchName = sessionStorage.getItem('loadedMatchName');
             try {
                 const data = JSON.parse(savedFormation);
                 
@@ -1744,6 +1761,8 @@
                 }
 
                 sessionStorage.removeItem('loadFormation');
+                sessionStorage.removeItem('loadedMatchId');
+                sessionStorage.removeItem('loadedMatchName');
             } catch (error) {
                 console.error('Error loading formation:', error);
             }
