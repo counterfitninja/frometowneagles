@@ -8,6 +8,7 @@ This is a Flask-based football team management application designed to run on Pt
   non-playing lists, including previously saved lineups. Past teams and recorded
   results are preserved; reactivating a player makes them eligible again.
 - Match scheduling and team formations
+- A goalkeeper-only view showing each upcoming fixture's in-goal assignment and any goalkeeper outfield option
 - Drag-and-drop pitch interface
 - Public pages for parents/players
 - Click a player name on either public page to see upcoming non-playing dates without logging in (unselected teams are shown separately)

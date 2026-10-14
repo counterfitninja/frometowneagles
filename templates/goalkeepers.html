@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}Goalkeeper Plan - {{ team_title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .keeper-page {
+        overflow: hidden;
+    }
+
+    .keeper-intro {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 190px;
+        align-items: center;
+        gap: 24px;
+        padding: 24px;
+        margin: 8px 0 24px;
+        background: #39583c;
+        color: #f7efe5;
+        border-radius: 16px;
+    }
+
+    .card .keeper-intro p {
+        max-width: 620px;
+        color: #f7efe5 !important;
+        line-height: 1.55;
+    }
+
+    .keeper-eyebrow,
+    .fixture-date,
+    .keeper-label {
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+
+    .keeper-intro .keeper-eyebrow {
+        margin-bottom: 8px;
+        color: #f1d16a !important;
+    }
+
+    .card .keeper-intro h2 {
+        margin-bottom: 8px;
+        color: #fff !important;
+        font-size: clamp(28px, 4vw, 42px);
+    }
+
+    .goal-mouth {
+        position: relative;
+        height: 114px;
+        border: 2px solid rgba(247, 239, 229, .8);
+        border-bottom: 0;
+        border-radius: 80px 80px 0 0;
+    }
+
+    .goal-mouth::before {
+        position: absolute;
+        right: 22%;
+        bottom: 0;
+        left: 22%;
+        height: 44px;
+        border: 1px solid rgba(247, 239, 229, .55);
+        border-bottom: 0;
+        content: "";
+    }
+
+    .goal-mouth::after {
+        position: absolute;
+        right: 50%;
+        bottom: 8px;
+        width: 15px;
+        height: 15px;
+        border: 3px solid #1e1f28;
+        border-radius: 50%;
+        background: #d4af37;
+        content: "";
+        transform: translateX(50%);
+    }
+
+    .fixture-list {
+        display: grid;
+        gap: 14px;
+    }
+
+    .keeper-fixture {
+        padding: 20px;
+        border: 1px solid #d2c5b6;
+        border-top: 3px solid #39583c;
+        border-radius: 14px;
+        background: #f7efe5;
+    }
+
+    .fixture-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid #d2c5b6;
+    }
+
+    .fixture-heading h3 {
+        margin: 2px 0 4px;
+        font-size: 23px;
+    }
+
+    .fixture-date {
+        color: #756d66;
+    }
+
+    .fixture-location {
+        color: #756d66;
+        font-size: 14px;
+    }
+
+    .keeper-status {
+        flex: 0 0 auto;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: #39583c;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 750;
+    }
+
+    .keeper-status.solo {
+        background: #d4af37;
+        color: #1e1f28;
+    }
+
+    .keeper-status.pending {
+        background: #dedbd4;
+        color: #393630;
+    }
+
+    .keeper-assignments {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        padding-top: 14px;
+    }
+
+    .keeper-assignment {
+        min-height: 96px;
+        padding: 14px;
+        border-radius: 12px;
+        background: #efe5d8;
+    }
+
+    .keeper-assignment.in-goal {
+        border-top: 3px solid #39583c;
+    }
+
+    .keeper-assignment.outfield {
+        border-top: 3px solid #d4af37;
+    }
+
+    .keeper-label {
+        margin-bottom: 8px;
+        color: #756d66;
+    }
+
+    .keeper-assignment .keeper-names {
+        color: #1e1f28;
+        font-size: 18px;
+        font-weight: 750;
+    }
+
+    .keeper-note,
+    .no-keeper-fixtures {
+        margin-top: 12px;
+        color: #756d66;
+        font-size: 14px;
+    }
+
+    .no-keeper-fixtures {
+        padding: 24px;
+        border: 1px dashed #d2c5b6;
+        border-radius: 14px;
+        text-align: center;
+    }
+
+    @media (max-width: 640px) {
+        .keeper-intro {
+            grid-template-columns: 1fr;
+            padding: 20px;
+        }
+
+        .goal-mouth {
+            width: 150px;
+            height: 82px;
+            margin: 0 auto;
+        }
+
+        .fixture-heading {
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .keeper-assignments {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="card keeper-page">
+    <p class="keeper-eyebrow">Frome Town Eagles · matchday plan</p>
+    <h2>Goalkeeper plan</h2>
+    <section class="keeper-intro" aria-label="How to read the goalkeeper plan">
+        <div>
+            <p class="keeper-eyebrow">Between the posts</p>
+            <h2>One keeper in goal.<br>Every option in view.</h2>
+            <p>Check who is assigned in goal for each upcoming fixture, and whether another goalkeeper is available to play outfield.</p>
+        </div>
+        <div class="goal-mouth" aria-hidden="true"></div>
+    </section>
+
+    {% if fixtures %}
+    <div class="fixture-list">
+        {% for fixture in fixtures %}
+        <article class="keeper-fixture">
+            <header class="fixture-heading">
+                <div>
+                    <p class="fixture-date">{{ fixture.match_date | ukdate }}</p>
+                    <h3>vs {{ fixture.opponent }}</h3>
+                    <p class="fixture-location">{{ fixture.location or 'Location to be confirmed' }}</p>
+                </div>
+                {% if not fixture.team_selected %}
+                <span class="keeper-status pending">Team not selected</span>
+                {% elif fixture.in_goal|length == 1 and fixture.goalkeeper_count == 1 %}
+                <span class="keeper-status solo">Only keeper selected</span>
+                {% elif fixture.in_goal|length == 1 %}
+                <span class="keeper-status">One keeper in goal</span>
+                {% elif fixture.in_goal|length > 1 %}
+                <span class="keeper-status">Keeper changes saved</span>
+                {% else %}
+                <span class="keeper-status solo">No keeper assigned</span>
+                {% endif %}
+            </header>
+
+            {% if fixture.team_selected %}
+            <div class="keeper-assignments">
+                <section class="keeper-assignment in-goal">
+                    <p class="keeper-label">In goal</p>
+                    <p class="keeper-names">
+                        {% if fixture.in_goal %}
+                            {% for keeper in fixture.in_goal %}{{ keeper.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                        {% else %}
+                            Not assigned
+                        {% endif %}
+                    </p>
+                </section>
+                <section class="keeper-assignment outfield">
+                    <p class="keeper-label">Outfield option</p>
+                    <p class="keeper-names">
+                        {% if fixture.outfield_options %}
+                            {% for keeper in fixture.outfield_options %}{{ keeper.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                        {% else %}
+                            None selected
+                        {% endif %}
+                    </p>
+                </section>
+            </div>
+            {% if fixture.in_goal|length == 1 and fixture.goalkeeper_count == 1 %}
+            <p class="keeper-note">This is the only goalkeeper included in the saved team.</p>
+            {% elif not fixture.in_goal %}
+            <p class="keeper-note">No goalkeeper is assigned in goal. Review this team before matchday.</p>
+            {% endif %}
+            {% else %}
+            <p class="keeper-note">Save a team for this fixture to see the goalkeeper assignments.</p>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-keeper-fixtures">
+        <p>No upcoming fixtures to show.</p>
+        <p style="margin-top: 8px;"><a href="/matches">Add or review fixtures</a> in Match Schedule.</p>
+    </div>
+    {% endif %}
+</main>
+{% endblock %}
