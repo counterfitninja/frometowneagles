@@ -20,7 +20,7 @@ def add_security_headers(response):
     response.headers['X-XSS-Protection'] = '1; mode=block'
     if request.path == '/static/sw.js':
         response.headers['Service-Worker-Allowed'] = '/'
-    if request.path.startswith(('/team-generator', '/public/players/', '/players/absence')):
+    if request.path.startswith(('/team-generator', '/public/players/', '/players/absence', '/goalkeepers')):
         response.headers.setdefault('Cache-Control', 'private, no-store')
     return response
 
@@ -1425,6 +1425,57 @@ def matches_overview():
                          matches=matches_with_teams,
                          player_stats=stats_list,
                          version=VERSION)
+
+@app.route('/goalkeepers')
+@login_required
+def goalkeepers():
+    today = datetime.now().date().isoformat()
+    with get_db() as conn:
+        matches_list = conn.execute('''
+            SELECT m.id, m.match_date, m.opponent, m.location, f.data AS formation_data
+            FROM matches m
+            LEFT JOIN formations f ON m.formation_id = f.id
+            WHERE m.match_date >= ?
+            ORDER BY m.match_date, m.id
+        ''', (today,)).fetchall()
+        goalkeepers_by_id = {
+            str(player['id']): dict(player)
+            for player in conn.execute(
+                "SELECT id, name FROM players WHERE position = 'GK' AND status = 'active'"
+            ).fetchall()
+        }
+
+    fixtures = []
+    for row in matches_list:
+        match = dict(row)
+        match['in_goal'] = {}
+        match['outfield_options'] = {}
+        match['team_selected'] = False
+
+        if match['formation_data']:
+            formation_data = json.loads(match['formation_data'])
+            for formation in formation_data.get('formations', []):
+                for key in ('players', 'subs'):
+                    for slot in formation.get(key, []):
+                        match['team_selected'] = True
+                        player_id = str(slot.get('id'))
+                        goalkeeper = goalkeepers_by_id.get(player_id)
+                        if not goalkeeper:
+                            continue
+                        position = slot.get('position') or 'GK'
+                        destination = match['in_goal'] if position == 'GK' else match['outfield_options']
+                        destination[player_id] = goalkeeper
+
+        # A goalkeeper appearing in goal in any saved formation is not also
+        # presented as an outfield option for the same fixture.
+        for player_id in match['in_goal']:
+            match['outfield_options'].pop(player_id, None)
+        match['in_goal'] = list(match['in_goal'].values())
+        match['outfield_options'] = list(match['outfield_options'].values())
+        match['goalkeeper_count'] = len(match['in_goal']) + len(match['outfield_options'])
+        fixtures.append(match)
+
+    return render_template('goalkeepers.html', fixtures=fixtures, version=VERSION)
 
 @app.route('/matches/overview/text')
 @login_required

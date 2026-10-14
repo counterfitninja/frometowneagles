@@ -47,7 +47,6 @@
         .header {
             background: var(--paper);
             border: 1px solid var(--line);
-            border-left: 8px solid var(--red);
             border-radius: 0;
             padding: 18px 20px;
             margin-bottom: 18px;
@@ -326,6 +325,7 @@
                         <div class="menu-actions">
                             <a href="/gameday">Plan next team</a>
                             <a href="/team-generator">Generate teams</a>
+                            <a href="{{ url_for('goalkeepers') }}">Goalkeepers</a>
                             <a href="{{ url_for('plan_player_absence') }}">Plan a player absence</a>
                             <a href="/formations">Saved formations</a>
                             <a href="/stats">Leaderboard</a>
