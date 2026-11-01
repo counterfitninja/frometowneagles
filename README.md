@@ -30,7 +30,9 @@ a single tap. Confirm the incoming player to record the substitution. A numbered
 badge beside a player's name shows how many times they have come off during
 this live match, across formation tabs. Players who came off stay on the bench
 and can come back on. Counts are remembered on this device when you return and
-cleared by **Reset substitutions**.
+cleared by **Reset substitutions**. The saved lineup includes returning bench
+players, so they remain available when opened on another device; counts stay
+device-local.
 
 Expand **Goals and assists** to review or remove goals. **More** contains result
 sharing, man of the match, score corrections, whole-team switching and separate

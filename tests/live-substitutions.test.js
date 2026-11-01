@@ -146,9 +146,22 @@ test('rolling substitutions count outgoing players by ID, show badges and preser
     assert.equal(screen.state().subLog[0].offId, 1);
     assert.equal(screen.state().subLog[0].onId, 2);
     const savedFormation = JSON.parse(screen.requests[2].data).formations[0];
+    assert.deepEqual(savedFormation.subs.map(p => p.id), [1]);
     assert.deepEqual(savedFormation.squad.map(p => p.id), [1, 2, 3]);
     assert.ok(!JSON.stringify(savedFormation).includes('subbedIn'));
     assert.equal(screen.alerts.length, 0);
+});
+
+test('saved lineups keep outgoing players on the bench when opened without local state', () => {
+    const screen = setup();
+    screen.swap(0, 0);
+    const saved = JSON.parse(screen.requests[0].data).formations;
+    const reopened = setup(undefined, saved);
+    assert.equal(reopened.element('subBtn').disabled, false);
+    reopened.swap(0, 0);
+    assert.deepEqual(reopened.state().formations[0].players.map(p => p.id), [1, 3]);
+    assert.deepEqual(reopened.state().formations[0].subbedOff.map(p => p.id), [2]);
+    assert.equal(reopened.alerts.length, 0);
 });
 
 test('picker includes both unused and previously substituted bench players without duplicates', () => {

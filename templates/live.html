@@ -1211,7 +1211,7 @@
         const formationsForSave = state.formations.map(f => ({
             name: f.name,
             players: f.players.map(({ subbedIn, ...rest }) => rest),
-            subs: f.subs.map(({ subbedIn, ...rest }) => rest),
+            subs: [...f.subs, ...f.subbedOff].map(({ subbedIn, ...rest }) => rest),
             squad: (f.squad || [...f.players, ...f.subs, ...f.subbedOff])
                 .map(({ subbedIn, ...rest }) => rest)
         }));
