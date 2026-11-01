@@ -568,7 +568,7 @@
         }
     </style>
     <link rel="stylesheet" href="/static/design-language.css?v=20260818-rounded">
-    <link rel="stylesheet" href="/static/live-match.css?v=20261004">
+    <link rel="stylesheet" href="/static/live-match.css?v=20261101">
 </head>
 <body class="live-screen">
 
@@ -655,6 +655,7 @@
         <button class="sub-btn" id="subBtn" onclick="openSubModal()">🔄 Sub Made</button>
         <div class="sub-tally" id="subTally">0 subs</div>
     </div>
+    <p class="sub-help">Double-click a player to sub them off. Badges show times off. Bench players can come back on.</p>
     <div class="sub-log" id="subLog"></div>
 </div>
 {% else %}
@@ -787,6 +788,33 @@
         return (name || '').split(' ')[0];
     }
 
+    function timesSubbedOff(player) {
+        return state.subLog.filter(s => s.offId !== undefined
+            ? String(s.offId) === String(player.id)
+            : s.off === player.name).length;
+    }
+
+    function setPlayerLabel(el, player, label) {
+        const count = timesSubbedOff(player);
+        const name = document.createElement('span');
+        name.textContent = label;
+        el.appendChild(name);
+        if (count > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'sub-count';
+            badge.textContent = count;
+            badge.setAttribute('aria-label', count + (count === 1 ? ' time off' : ' times off'));
+            el.appendChild(badge);
+        }
+        el.title = player.name + (player.position ? ' · ' + player.position : '') +
+            ' · ' + count + (count === 1 ? ' time off' : ' times off');
+    }
+
+    function benchPlayers() {
+        const f = currentFormation();
+        return [...f.subs, ...f.subbedOff];
+    }
+
     function renderPitch() {
         const f = currentFormation();
         const container = document.getElementById('pitchPlayers');
@@ -800,9 +828,20 @@
             el.className = cls;
             el.style.left = p.xPercent + '%';
             el.style.top  = p.yPercent + '%';
-            el.textContent = firstName(p.name);
-            el.title = p.name + (p.position ? ' · ' + p.position : '');
+            setPlayerLabel(el, p, firstName(p.name));
+            el.title += ' · Double-click to sub off';
             el.dataset.idx = i;
+            el.setAttribute('role', 'button');
+            el.tabIndex = 0;
+            el.setAttribute('aria-label', p.name + ', ' + timesSubbedOff(p) +
+                ' times off. Choose substitution');
+            el.addEventListener('dblclick', () => openSubModal(i));
+            el.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openSubModal(i);
+                }
+            });
 
             if (!state.locked) {
                 let dragState = null;
@@ -883,15 +922,15 @@
         f.subs.forEach(p => {
             const el = document.createElement('div');
             el.className = 'bench-chip';
-            el.textContent = firstName(p.name) + (p.position ? ' · ' + p.position : '');
+            setPlayerLabel(el, p, firstName(p.name) + (p.position ? ' · ' + p.position : ''));
             bench.appendChild(el);
         });
 
         f.subbedOff.forEach(p => {
             const el = document.createElement('div');
             el.className = 'bench-chip used';
-            el.textContent = firstName(p.name);
-            el.title = p.name + ' (subbed off)';
+            setPlayerLabel(el, p, firstName(p.name));
+            el.title += ' · Available to come back on';
             bench.appendChild(el);
         });
     }
@@ -933,9 +972,8 @@
     }
 
     function renderSubBtn() {
-        const f = currentFormation();
         const btn = document.getElementById('subBtn');
-        btn.disabled = f.subs.length === 0;
+        btn.disabled = benchPlayers().length === 0;
 
         const count = state.subLog.filter(s => s.fi === state.formationIndex).length;
         document.getElementById('subTally').textContent = count + (count === 1 ? ' sub' : ' subs');
@@ -969,7 +1007,8 @@
 
     function openSubModal(preSelectOffIndex) {
         const f = currentFormation();
-        if (f.subs.length === 0) {
+        const available = benchPlayers();
+        if (available.length === 0) {
             alert('No substitutes remaining on the bench.');
             return;
         }
@@ -983,7 +1022,7 @@
         f.players.forEach((p, i) => {
             const btn = document.createElement('button');
             btn.className = 'modal-player-btn';
-            btn.textContent = firstName(p.name) + (p.position ? ' · ' + p.position : '');
+            setPlayerLabel(btn, p, firstName(p.name) + (p.position ? ' · ' + p.position : ''));
             btn.dataset.idx = i;
             btn.addEventListener('click', () => selectOff(i));
             offList.appendChild(btn);
@@ -992,10 +1031,10 @@
         // Build ON list
         const onList = document.getElementById('modalOnList');
         onList.innerHTML = '';
-        f.subs.forEach((p, i) => {
+        available.forEach((p, i) => {
             const btn = document.createElement('button');
             btn.className = 'modal-player-btn';
-            btn.textContent = firstName(p.name) + (p.position ? ' · ' + p.position : '');
+            setPlayerLabel(btn, p, firstName(p.name) + (p.position ? ' · ' + p.position : ''));
             btn.dataset.idx = i;
             btn.addEventListener('click', () => selectOn(i));
             onList.appendChild(btn);
@@ -1041,7 +1080,7 @@
 
         const f = currentFormation();
         const playerOff = f.players[selectedOff];
-        const playerOn  = f.subs[selectedOn];
+        const playerOn  = benchPlayers()[selectedOn];
 
         // Swap: incoming player takes the outgoing player's pitch position
         const newPitchPlayer = {
@@ -1052,7 +1091,11 @@
         };
 
         f.players[selectedOff] = newPitchPlayer;
-        f.subs.splice(selectedOn, 1);
+        if (selectedOn < f.subs.length) {
+            f.subs.splice(selectedOn, 1);
+        } else {
+            f.subbedOff.splice(selectedOn - f.subs.length, 1);
+        }
         f.subbedOff.push(playerOff);
 
         // Log it
@@ -1060,7 +1103,9 @@
         const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
         state.subLog.push({
             off: playerOff.name,
+            offId: playerOff.id,
             on:  playerOn.name,
+            onId: playerOn.id,
             time,
             fi: state.formationIndex
         });
@@ -1074,8 +1119,7 @@
     // ── EMERGENCY TAP ───────────────────────────────────────
 
     function emergencyTap(playerIndex) {
-        const f = currentFormation();
-        if (f.subs.length > 0) {
+        if (benchPlayers().length > 0) {
             openSubModal(playerIndex);
         } else {
             alert('No bench players available to bring on.');
@@ -1131,6 +1175,7 @@
                 // Only log as subbed off if they're not also starting in the new formation
                 state.subLog.push({
                     off: p.name,
+                    offId: p.id,
                     on: '(formation switch)',
                     time,
                     fi: state.formationIndex
@@ -1166,7 +1211,7 @@
         const formationsForSave = state.formations.map(f => ({
             name: f.name,
             players: f.players.map(({ subbedIn, ...rest }) => rest),
-            subs: f.subs.map(({ subbedIn, ...rest }) => rest),
+            subs: [...f.subs, ...f.subbedOff].map(({ subbedIn, ...rest }) => rest),
             squad: (f.squad || [...f.players, ...f.subs, ...f.subbedOff])
                 .map(({ subbedIn, ...rest }) => rest)
         }));

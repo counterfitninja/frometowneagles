@@ -163,6 +163,51 @@
 .live-screen .formation-tab.active { border-bottom-color: var(--fte-gold); }
 .live-screen .sub-btn { background: var(--fte-slate); }
 
+.live-screen .live-player {
+    flex-direction: column;
+    gap: 2px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.live-screen .live-player:focus-visible {
+    outline: 3px solid var(--fte-paper);
+    outline-offset: 3px;
+}
+.sub-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--fte-red-deep);
+    color: var(--fte-paper);
+    font: 700 11px/1 "Aptos", "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+.bench-chip,
+.modal-player-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.live-screen .bench-chip.used {
+    color: var(--fte-paper);
+    text-decoration: none;
+}
+.sub-help {
+    padding: 0 12px 10px;
+    color: var(--fte-paper-line);
+    font-size: 12px;
+    line-height: 1.5;
+}
+@media (prefers-reduced-motion: reduce) {
+    .live-screen .live-player { animation: none; transition: none; }
+}
+
 .goal-history {
     width: min(700px, 100%);
     margin: 12px auto 24px;
