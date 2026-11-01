@@ -1,9 +1,9 @@
 // Service Worker for offline functionality
-const CACHE_NAME = 'football-manager-absence-20261009';
+const CACHE_NAME = 'football-manager-subs-20261101';
 const urlsToCache = [
     '/static/manifest.json',
     '/static/design-language.css?v=20260818-rounded',
-    '/static/live-match.css?v=20261004',
+    '/static/live-match.css?v=20261101',
     '/static/match-result.js?v=20261004',
     '/static/icon-192.svg',
     '/static/icon-512.svg',

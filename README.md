@@ -23,6 +23,15 @@ for the next upcoming match. Tap **Goal!**, select the scorer, then the assister
 (or **No assist**). The pitch and substitution controls stay on the same screen.
 Matches without a selected team can still record results using active players.
 
+Double-click a player icon on the pitch to open the substitution picker with
+that player selected to come off, even while pitch edits are locked. Keyboard
+users can focus the icon and press Enter or Space; **Sub Made** also works with
+a single tap. Confirm the incoming player to record the substitution. A numbered
+badge beside a player's name shows how many times they have come off during
+this live match, across formation tabs. Players who came off stay on the bench
+and can come back on. Counts are remembered on this device when you return and
+cleared by **Reset substitutions**.
+
 Expand **Goals and assists** to review or remove goals. **More** contains result
 sharing, man of the match, score corrections, whole-team switching and separate
 resets for results and substitutions. Results are saved on the device and uploaded
