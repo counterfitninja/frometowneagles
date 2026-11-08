@@ -30,8 +30,10 @@ Older opposition goals keep their score with an unknown time.
 Open **More > Results** (also available from the live match and leaderboard) to
 review past fixtures and today's matches, newest first. Each scoreboard shows
 scorers, assists and both teams' estimated goal minutes from a 2pm UK kick-off.
-These elapsed minutes include any half-time break; original clock timestamps remain
-saved and available in the time editor. Goals before 2pm are labelled **before kick-off**.
+Each half lasts 35 minutes, with a 10-minute half-time break from 2:35pm to 2:45pm.
+Second-half minutes subtract the break (2:50pm shows 40 min); full-time is 3:20pm.
+Original clock timestamps remain saved and available in the time editor. Timestamps
+before kick-off, during half-time or after full-time are labelled accordingly.
 Expand **Goal timeline**
 for the chronological sequence. Goals without timestamps show **Time unknown**; their position
 at the end of the list does not imply they were scored last. Unsynced results

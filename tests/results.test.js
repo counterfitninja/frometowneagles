@@ -90,7 +90,7 @@ test('UK clock times respect daylight saving independently of device timezone', 
         goals: [{ scorer: 'Sam', at: Date.parse('2026-07-08T14:05:00Z') }],
         opponentGoals: 0, opponentGoalTimes: []
     } } });
-    assert.equal(screen.timeline()[0].children[0].textContent, '65 min');
+    assert.equal(screen.timeline()[0].children[0].textContent, '55 min');
 });
 
 test('game minutes use whole elapsed minutes from 2pm and flag pre-kickoff timestamps', () => {
@@ -104,6 +104,29 @@ test('game minutes use whole elapsed minutes from 2pm and flag pre-kickoff times
     } } });
     assert.deepEqual(screen.timeline().map(row => row.children[0].textContent),
         ['before kick-off', '0 min', '0 min', '1 min']);
+});
+
+test('35-minute halves exclude the 10-minute break and flag out-of-play timestamps', () => {
+    for (const date of ['2026-11-08', '2026-07-08']) {
+        const offset = date.includes('-07-') ? '+01:00' : 'Z';
+        const times = ['14:34:59', '14:35:00', '14:44:59', '14:45:00',
+            '14:50:00', '15:19:59', '15:20:00', '15:20:01'];
+        const screen = setup({ match: {
+            match_date: date,
+            savedState: {
+                goals: times.map(time => ({ scorer: 'Sam', assist: 'Alex', at: Date.parse(date + 'T' + time + offset) })),
+                opponentGoals: times.length,
+                opponentGoalTimes: times.map(time => Date.parse(date + 'T' + time + offset))
+            }
+        } });
+        const expected = ['34 min', 'half-time', 'half-time', '35 min',
+            '40 min', '69 min', '70 min', 'after full-time'];
+        assert.deepEqual(screen.timeline().filter(row => !row.className.includes('is-opposition'))
+            .map(row => row.children[0].textContent), expected);
+        assert.deepEqual(screen.timeline().filter(row => row.className.includes('is-opposition'))
+            .map(row => row.children[0].textContent), expected);
+        assert.match(screen.element('result-assists-7').textContent, /Alex \(40 min\)/);
+    }
 });
 
 test('saved goalless draws differ from fixtures without a result', () => {

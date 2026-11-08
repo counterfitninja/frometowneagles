@@ -13,7 +13,8 @@
     <a href="/matches" class="btn">Match schedule</a>
 </section>
 <p class="results-time-note">Goal minutes assume a 2pm UK kick-off on the fixture date.
-    These are estimated elapsed minutes, including any half-time break.
+    Each half lasts 35 minutes, with a 10-minute break from 2:35pm to 2:45pm.
+    Second-half minutes exclude the break; full-time is assumed at 3:20pm.
     Edit goal times using UK clock time.
     Goals with unknown times appear after timed goals, not necessarily in scoring order.
     A result's last update cannot tell us when older opposition goals were scored.</p>
@@ -70,5 +71,5 @@
 <script id="resultsConfig" type="application/json">{{ matches | tojson }}</script>
 {% endblock %}
 {% block extra_js %}
-<script src="/static/results.js?v=20261108-edit-times" defer></script>
+<script src="/static/results.js?v=20261108-halves" defer></script>
 {% endblock %}

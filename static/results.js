@@ -10,8 +10,11 @@
     const validTime = at => Number.isSafeInteger(at) && at >= 0 && at <= 8640000000000000;
     function goalTime(match, at) {
         if (!validTime(at)) return 'time unknown';
-        const elapsed = at - clockTimestamp(match.match_date, '14:00');
-        return elapsed < 0 ? 'before kick-off' : Math.floor(elapsed / 60000) + ' min';
+        const elapsed = (at - clockTimestamp(match.match_date, '14:00')) / 60000;
+        if (elapsed < 0) return 'before kick-off';
+        if (elapsed >= 35 && elapsed < 45) return 'half-time';
+        if (elapsed > 80) return 'after full-time';
+        return Math.floor(elapsed >= 45 ? elapsed - 10 : elapsed) + ' min';
     }
     const ukDate = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit'
