@@ -12,6 +12,16 @@
     let pickerTrigger = null;
     let playerError = '';
 
+    function opponentGoalTimes(saved) {
+        if (saved.opponentGoalTimes === undefined) return Array(saved.opponentGoals).fill(null);
+        if (!Array.isArray(saved.opponentGoalTimes)
+            || saved.opponentGoalTimes.length !== saved.opponentGoals
+            || saved.opponentGoalTimes.some(at => at !== null && (!Number.isSafeInteger(at) || at < 0))) {
+            throw new Error('Invalid saved opponent goal times');
+        }
+        return saved.opponentGoalTimes;
+    }
+
     function readState() {
         for (const key of [config.storageKey, ...config.legacyKeys]) {
             let raw;
@@ -27,7 +37,11 @@
                 const saved = JSON.parse(raw);
                 if (!Array.isArray(saved.goals) || !Number.isInteger(saved.opponentGoals)
                     || saved.opponentGoals < 0) throw new Error('Invalid saved result');
-                return { ...saved, pendingSync: key !== config.storageKey || Boolean(saved.pendingSync) };
+                return {
+                    ...saved,
+                    opponentGoalTimes: opponentGoalTimes(saved),
+                    pendingSync: key !== config.storageKey || Boolean(saved.pendingSync)
+                };
             } catch (error) {
                 storageError = true;
                 console.error('Cannot restore the saved match result', error);
@@ -37,7 +51,11 @@
                 return null;
             }
         }
-        return { ...config.savedState, pendingSync: false };
+        return {
+            ...config.savedState,
+            opponentGoalTimes: opponentGoalTimes(config.savedState),
+            pendingSync: false
+        };
     }
 
     let result = readState();
@@ -83,6 +101,7 @@
                 };
             }),
             opponentGoals: result.opponentGoals,
+            opponentGoalTimes: result.opponentGoalTimes,
             motmPlayerId: result.motmPlayerId || null
         };
     }
@@ -257,6 +276,7 @@
         },
         addOpponentGoal() {
             if (!result) return;
+            result.opponentGoalTimes.push(Date.now());
             result.opponentGoals += 1;
             save();
         },
@@ -264,13 +284,14 @@
             closeMore();
             if (!result || !result.opponentGoals) return;
             if (!confirm('Remove an opponent goal?')) return;
+            result.opponentGoalTimes.pop();
             result.opponentGoals -= 1;
             save();
         },
         reset() {
             closeMore();
             if (!result || !confirm('Clear the score, goals, assists and man of the match? Substitutions will not change.')) return;
-            result = { goals: [], opponentGoals: 0, motmPlayerId: null, pendingSync: true };
+            result = { goals: [], opponentGoals: 0, opponentGoalTimes: [], motmPlayerId: null, pendingSync: true };
             save();
         },
         async share() {

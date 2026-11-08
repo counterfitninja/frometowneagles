@@ -117,8 +117,10 @@ test('static assets use the cache and the live bundle is precached', async () =>
     let installed;
     worker.handlers.install({ waitUntil: value => { installed = value; } });
     await installed;
-    assert.ok(worker.precached.includes(origin + '/static/match-result.js?v=20261004'));
+    assert.ok(worker.precached.includes(origin + '/static/match-result.js?v=20261108'));
     assert.ok(worker.precached.includes(origin + '/static/live-match.css?v=20261101'));
+    assert.ok(worker.precached.includes(origin + '/static/results.js?v=20261108-scoreboard'));
+    assert.ok(worker.precached.includes(origin + '/static/results.css?v=20261108-scoreboard'));
     assert.ok(worker.precached.includes(origin + '/static/icon-192.svg'));
     assert.ok(!worker.precached.includes(origin + '/players'));
 });

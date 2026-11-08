@@ -308,7 +308,7 @@
     {% block extra_css %}{% endblock %}
     <link rel="stylesheet" href="/static/design-language.css?v=20260818-rounded">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     <div class="container">
         {% if session.logged_in %}
         <div class="header">
@@ -328,6 +328,7 @@
                             <a href="{{ url_for('goalkeepers') }}">Goalkeepers</a>
                             <a href="{{ url_for('plan_player_absence') }}">Plan a player absence</a>
                             <a href="/formations">Saved formations</a>
+                            <a href="{{ url_for('results_view') }}">Results</a>
                             <a href="/stats">Leaderboard</a>
                             <a href="/settings">Settings</a>
                             <a href="/logout" class="danger-action">Log out</a>

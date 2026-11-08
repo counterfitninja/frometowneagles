@@ -72,6 +72,7 @@ function setup(options = {}) {
             }
         },
         navigator,
+        Date: { now: () => options.now ? options.now() : Date.now() },
         console: { error: (...args) => errors.push(args) },
         confirm: () => options.confirm !== false,
         fetch: async (url, request) => {
@@ -176,6 +177,76 @@ test('uploads are serialized and new changes are sent after the pending request'
     pending.shift()({ ok: true, json: async () => ({ success: true }) });
     await tick();
     assert.equal(screen.saved().pendingSync, false);
+});
+
+test('opposition goal timestamps survive offline reload and reconnect', async () => {
+    let now = 1794154743000;
+    const screen = setup({ online: false, now: () => now });
+    screen.api.addOpponentGoal();
+    now += 60000;
+    screen.api.addOpponentGoal();
+    const times = [1794154743000, 1794154803000];
+    assert.deepEqual(screen.saved().opponentGoalTimes, times);
+    const reloaded = setup({ online: false, storage: Object.fromEntries(screen.storage) });
+    assert.deepEqual(reloaded.saved().opponentGoalTimes, times);
+    reloaded.navigator.onLine = true;
+    await reloaded.windowEvents.online();
+    assert.deepEqual(reloaded.requests[0].body.opponentGoalTimes, times);
+    assert.equal(reloaded.requests[0].body.opponentGoals, 2);
+});
+
+test('opposition corrections remove the latest timestamp and reset clears all', () => {
+    let now = 1000;
+    const screen = setup({ online: false, now: () => now++ });
+    screen.api.addOpponentGoal();
+    screen.api.addOpponentGoal();
+    screen.api.removeOpponentGoal();
+    assert.deepEqual(screen.saved().opponentGoalTimes, [1000]);
+    assert.equal(screen.saved().opponentGoals, 1);
+    screen.api.reset();
+    assert.deepEqual(screen.saved().opponentGoalTimes, []);
+    assert.equal(screen.saved().opponentGoals, 0);
+});
+
+test('cancelled opposition correction keeps the timestamp and score', () => {
+    const screen = setup({ online: false, now: () => 1000, confirm: false });
+    screen.api.addOpponentGoal();
+    screen.api.removeOpponentGoal();
+    screen.api.reset();
+    assert.deepEqual(screen.saved().opponentGoalTimes, [1000]);
+    assert.equal(screen.saved().opponentGoals, 1);
+});
+
+test('restores opposition goal timestamps from the server', () => {
+    const screen = setup({
+        config: { savedState: { goals: [], opponentGoals: 2, opponentGoalTimes: [null, 1000], motmPlayerId: null } }
+    });
+    assert.deepEqual(screen.saved().opponentGoalTimes, [null, 1000]);
+    assert.equal(screen.element('themScore').textContent, 2);
+});
+
+test('legacy opposition goals retain unknown times when new goals are added', async () => {
+    const legacy = { goals: [], opponentGoals: 2, motmPlayerId: null };
+    for (const key of ['matchResult_7', 'matchDay_9', 'matchDay_match-7']) {
+        const screen = setup({ online: false, now: () => 1000, storage: { [key]: JSON.stringify(legacy) } });
+        assert.deepEqual(screen.saved().opponentGoalTimes, [null, null]);
+        screen.api.addOpponentGoal();
+        assert.deepEqual(screen.saved().opponentGoalTimes, [null, null, 1000]);
+        screen.navigator.onLine = true;
+        await screen.windowEvents.online();
+        assert.deepEqual(screen.requests[0].body.opponentGoalTimes, [null, null, 1000]);
+    }
+});
+
+test('invalid stored opposition goal times block replacement without losing data', () => {
+    for (const times of [null, [], [true], [-1], [1.5], ['1000']]) {
+        const raw = JSON.stringify({ goals: [], opponentGoals: 1, opponentGoalTimes: times });
+        const screen = setup({ storage: { matchResult_7: raw } });
+        screen.api.addOpponentGoal();
+        assert.equal(screen.storage.get('matchResult_7'), raw);
+        assert.equal(screen.element('opponentGoalButton').disabled, true);
+        assert.match(screen.element('resultStatus').textContent, /Cannot restore/);
+    }
 });
 
 test('upload failures retain pending state and expose a working retry', async () => {
