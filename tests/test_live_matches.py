@@ -290,7 +290,7 @@ class LiveMatchTests(unittest.TestCase):
         match_id = self.fixture(formation_id=formation_id)
         goals = [{'scorer_id': '5', 'scorer': 'Historic scorer',
                   'assist_id': '2', 'assist': 'Alex', 'at': 42}]
-        payload = {'goals': goals, 'opponentGoals': 2, 'motmPlayerId': '5'}
+        payload = {'goals': goals, 'opponentGoals': 2, 'opponentGoalTimes': [40, 41], 'motmPlayerId': '5'}
         response = self.client.post(f'/api/matches/{match_id}/result', json=payload)
         self.assertEqual(response.status_code, 200)
         config = self.config(self.page(f'/matches/{match_id}/live'))
@@ -308,6 +308,72 @@ class LiveMatchTests(unittest.TestCase):
         second_id = self.fixture(1, formation_id)
         config = self.config(self.page(f'/matches/{second_id}/live'))
         self.assertEqual(config['matchId'], second_id)
+
+    def test_opposition_goal_times_round_trip_through_api_and_live_views(self):
+        formation_id = self.formation()
+        match_id = self.fixture(formation_id=formation_id)
+        url = f'/api/matches/{match_id}/result'
+        self.assertEqual(self.client.get(url).get_json()['opponentGoalTimes'], [])
+        payload = {
+            'goals': [], 'opponentGoals': 2,
+            'opponentGoalTimes': [None, 1794154743000], 'motmPlayerId': None
+        }
+        self.assertEqual(self.client.post(url, json=payload).status_code, 200)
+        self.assertEqual(self.client.get(url).get_json(), payload)
+        for path in (f'/matches/{match_id}/live', f'/matches/{match_id}/result',
+                     f'/formations/{formation_id}/live'):
+            self.assertEqual(self.config(self.page(path))['savedState'], payload)
+        payload.update(opponentGoals=1, opponentGoalTimes=[None])
+        self.assertEqual(self.client.post(url, json=payload).status_code, 200)
+        self.assertEqual(self.client.get(url).get_json(), payload)
+        payload.update(opponentGoals=0, opponentGoalTimes=[])
+        self.assertEqual(self.client.post(url, json=payload).status_code, 200)
+        self.assertEqual(self.client.get(url).get_json(), payload)
+
+    def test_legacy_results_preserve_unknown_times_and_existing_timestamps(self):
+        match_id = self.fixture()
+        url = f'/api/matches/{match_id}/result'
+        legacy = {'goals': [], 'opponentGoals': 2, 'motmPlayerId': None}
+        self.assertEqual(self.client.post(url, json=legacy).status_code, 200)
+        self.assertEqual(self.client.get(url).get_json()['opponentGoalTimes'], [None, None])
+        payload = {**legacy, 'opponentGoalTimes': [1000, 2000]}
+        self.assertEqual(self.client.post(url, json=payload).status_code, 200)
+        legacy['opponentGoals'] = 3
+        self.assertEqual(self.client.post(url, json=legacy).status_code, 200)
+        self.assertEqual(self.client.get(url).get_json()['opponentGoalTimes'], [1000, 2000, None])
+        legacy['opponentGoals'] = 1
+        self.assertEqual(self.client.post(url, json=legacy).status_code, 200)
+        self.assertEqual(self.client.get(url).get_json()['opponentGoalTimes'], [1000])
+
+    def test_invalid_opposition_goal_times_do_not_replace_saved_result(self):
+        match_id = self.fixture()
+        url = f'/api/matches/{match_id}/result'
+        payload = {'goals': [], 'opponentGoals': 1, 'opponentGoalTimes': [1000], 'motmPlayerId': None}
+        self.assertEqual(self.client.post(url, json=payload).status_code, 200)
+        for times in (None, {}, [], [1000, 2000], [True], [-1], [1.5], ['1000'], [9007199254740992]):
+            with self.subTest(times=times):
+                response = self.client.post(url, json={**payload, 'opponentGoalTimes': times})
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('error', response.get_json())
+                self.assertEqual(self.client.get(url).get_json(), payload)
+
+    def test_existing_database_migrates_opposition_goals_without_inventing_times(self):
+        match_id = self.fixture()
+        with application.get_db() as conn:
+            conn.execute('DROP TABLE match_results')
+            conn.execute('''CREATE TABLE match_results (
+                match_id INTEGER PRIMARY KEY, goals_json TEXT NOT NULL DEFAULT '[]',
+                opponent_goals INTEGER NOT NULL DEFAULT 0, motm_player_id INTEGER,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )''')
+            conn.execute('INSERT INTO match_results (match_id, opponent_goals) VALUES (?, 2)', (match_id,))
+            conn.commit()
+        application.init_db()
+        application.init_db()
+        result = self.client.get(f'/api/matches/{match_id}/result').get_json()
+        self.assertEqual(result['opponentGoals'], 2)
+        self.assertEqual(result['opponentGoalTimes'], [None, None])
+        self.assertEqual(self.config(self.page(f'/matches/{match_id}/live'))['savedState'], result)
 
     def test_substituted_players_remain_available_after_saving_the_lineup(self):
         formation_id = self.formation()
@@ -335,7 +401,7 @@ class LiveMatchTests(unittest.TestCase):
         with self.client.get('/static/sw.js') as response:
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.headers['Service-Worker-Allowed'], '/')
-        for asset in ('live-match.css?v=20261101', 'match-result.js?v=20261004',
+        for asset in ('live-match.css?v=20261101', 'match-result.js?v=20261108',
                       'icon-192.svg', 'icon-512.svg'):
             with self.client.get('/static/' + asset) as response:
                 self.assertEqual(response.status_code, 200)

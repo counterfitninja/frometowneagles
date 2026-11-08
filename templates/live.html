@@ -584,6 +584,7 @@
         <div class="live-more-actions">
             <button type="button" id="motmButton" onclick="matchResult.chooseMotm()">Choose man of the match</button>
             <button type="button" onclick="matchResult.share()">Share result</button>
+            <a href="{{ url_for('results_view') }}">Results</a>
             <button type="button" onclick="matchResult.removeOpponentGoal()">Remove opponent goal</button>
             {% if formations %}
             <button type="button" id="switchBtn" onclick="openSwitchModal()">Switch whole team</button>
@@ -678,7 +679,7 @@
     <button type="button" class="result-cancel" onclick="matchResult.closePicker()">Cancel</button>
 </dialog>
 <script id="resultConfig" type="application/json">{{ result_config | tojson }}</script>
-<script src="/static/match-result.js?v=20261004" defer></script>
+<script src="/static/match-result.js?v=20261108" defer></script>
 
 <!-- SUB MODAL -->
 <div class="modal-overlay hidden" id="subModal">

@@ -101,12 +101,16 @@ def init_db():
                 match_id INTEGER PRIMARY KEY,
                 goals_json TEXT NOT NULL DEFAULT '[]',
                 opponent_goals INTEGER NOT NULL DEFAULT 0,
+                opponent_goal_times_json TEXT NOT NULL DEFAULT '[]',
                 motm_player_id INTEGER,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
                 FOREIGN KEY (motm_player_id) REFERENCES players(id)
             )
         ''')
+        result_columns = {column['name'] for column in conn.execute('PRAGMA table_info(match_results)').fetchall()}
+        if 'opponent_goal_times_json' not in result_columns:
+            conn.execute("ALTER TABLE match_results ADD COLUMN opponent_goal_times_json TEXT NOT NULL DEFAULT '[]'")
         match_columns = {column['name'] for column in conn.execute('PRAGMA table_info(matches)').fetchall()}
         if 'team_published' not in match_columns:
             conn.execute('ALTER TABLE matches ADD COLUMN team_published INTEGER NOT NULL DEFAULT 1')
@@ -644,6 +648,44 @@ def export_saved_unavailability():
     response.headers['Cache-Control'] = 'no-store'
     return response
 
+@app.route('/results')
+@login_required
+def results_view():
+    today = datetime.now().date().isoformat()
+    with get_db() as conn:
+        fixtures = conn.execute('''
+            SELECT m.id, m.match_date, m.opponent, m.location, m.formation_id,
+                   mr.match_id as result_id, mr.goals_json, mr.opponent_goals,
+                   mr.opponent_goal_times_json, mr.motm_player_id,
+                   (SELECT COUNT(*) FROM matches linked WHERE linked.formation_id = m.formation_id) as formation_uses
+            FROM matches m
+            LEFT JOIN match_results mr ON mr.match_id = m.id
+            WHERE m.match_date <= ?
+            ORDER BY m.match_date DESC, m.id DESC
+        ''', (today,)).fetchall()
+    matches = []
+    for fixture in fixtures:
+        legacy_keys = ['matchDay_match-' + str(fixture['id'])]
+        if fixture['formation_id'] and fixture['formation_uses'] == 1:
+            legacy_keys.append('matchDay_' + str(fixture['formation_id']))
+        matches.append({
+            'id': fixture['id'],
+            'match_date': fixture['match_date'],
+            'opponent': fixture['opponent'],
+            'location': fixture['location'] or '',
+            'hasResult': fixture['result_id'] is not None,
+            'storageKey': 'matchResult_' + str(fixture['id']),
+            'legacyKeys': legacy_keys,
+            'savedState': {
+                'goals': json.loads(fixture['goals_json'] or '[]'),
+                'opponentGoals': fixture['opponent_goals'] or 0,
+                'opponentGoalTimes': saved_opponent_goal_times(fixture),
+                'motmPlayerId': str(fixture['motm_player_id']) if fixture['motm_player_id'] else None
+            }
+        })
+    return render_template('results.html', matches=matches, version=VERSION)
+
+
 @app.route('/stats')
 @login_required
 def stats():
@@ -1083,7 +1125,7 @@ def live_view(formation_id):
     with get_db() as conn:
         row = conn.execute('''
             SELECT f.*, m.id as match_id, m.opponent, m.match_date, m.location,
-                   mr.goals_json, mr.opponent_goals, mr.motm_player_id
+                   mr.goals_json, mr.opponent_goals, mr.opponent_goal_times_json, mr.motm_player_id
             FROM formations f
             LEFT JOIN matches m ON m.formation_id = f.id
             LEFT JOIN match_results mr ON mr.match_id = m.id
@@ -1104,6 +1146,13 @@ def live_view(formation_id):
 @login_required
 def matchday_view(formation_id):
     return redirect(url_for('live_view', formation_id=formation_id))
+
+
+def saved_opponent_goal_times(row):
+    import json
+    times = json.loads(row['opponent_goal_times_json'] or '[]') if row else []
+    count = (row['opponent_goals'] or 0) if row else 0
+    return times[:count] + [None] * max(0, count - len(times))
 
 
 def render_live_match(row, formation_id=None, formation_name=None, formations=None):
@@ -1163,6 +1212,7 @@ def render_live_match(row, formation_id=None, formation_name=None, formations=No
             'savedState': {
                 'goals': saved_goals,
                 'opponentGoals': row['opponent_goals'] or 0,
+                'opponentGoalTimes': saved_opponent_goal_times(row),
                 'motmPlayerId': str(row['motm_player_id']) if row['motm_player_id'] else None
             }
         },
@@ -1176,7 +1226,8 @@ def match_result_view(match_id):
     """Open the same live screen for fixtures with or without a team."""
     with get_db() as conn:
         row = conn.execute('''
-            SELECT m.*, m.id as match_id, mr.goals_json, mr.opponent_goals, mr.motm_player_id
+            SELECT m.*, m.id as match_id, mr.goals_json, mr.opponent_goals,
+                   mr.opponent_goal_times_json, mr.motm_player_id
             FROM matches m
             LEFT JOIN match_results mr ON mr.match_id = m.id
             WHERE m.id = ?
@@ -1206,10 +1257,11 @@ def api_match_result(match_id):
         if request.method == 'GET':
             result = conn.execute('SELECT * FROM match_results WHERE match_id = ?', (match_id,)).fetchone()
             if not result:
-                return jsonify({'goals': [], 'opponentGoals': 0, 'motmPlayerId': None})
+                return jsonify({'goals': [], 'opponentGoals': 0, 'opponentGoalTimes': [], 'motmPlayerId': None})
             return jsonify({
                 'goals': json.loads(result['goals_json'] or '[]'),
                 'opponentGoals': result['opponent_goals'],
+                'opponentGoalTimes': saved_opponent_goal_times(result),
                 'motmPlayerId': str(result['motm_player_id']) if result['motm_player_id'] else None
             })
 
@@ -1248,6 +1300,18 @@ def api_match_result(match_id):
             return jsonify({'error': 'Opponent goals must be a number'}), 400
         opponent_goals = max(0, opponent_goals)
 
+        if 'opponentGoalTimes' in data:
+            opponent_goal_times = data['opponentGoalTimes']
+            if (not isinstance(opponent_goal_times, list)
+                    or len(opponent_goal_times) != opponent_goals
+                    or any(at is not None and (type(at) is not int or not 0 <= at <= 9007199254740991)
+                           for at in opponent_goal_times)):
+                return jsonify({'error': 'Opponent goal times must contain one timestamp or null per goal'}), 400
+        else:
+            existing = conn.execute('SELECT * FROM match_results WHERE match_id = ?', (match_id,)).fetchone()
+            times = saved_opponent_goal_times(existing)
+            opponent_goal_times = times[:opponent_goals] + [None] * max(0, opponent_goals - len(times))
+
         motm_player_id = data.get('motmPlayerId') or None
         if motm_player_id:
             motm_player = conn.execute('SELECT id FROM players WHERE id = ?', (motm_player_id,)).fetchone()
@@ -1255,14 +1319,16 @@ def api_match_result(match_id):
                 return jsonify({'error': 'Man of the match player not found'}), 400
 
         conn.execute('''
-            INSERT INTO match_results (match_id, goals_json, opponent_goals, motm_player_id, updated_at)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO match_results
+                (match_id, goals_json, opponent_goals, opponent_goal_times_json, motm_player_id, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(match_id) DO UPDATE SET
                 goals_json = excluded.goals_json,
                 opponent_goals = excluded.opponent_goals,
+                opponent_goal_times_json = excluded.opponent_goal_times_json,
                 motm_player_id = excluded.motm_player_id,
                 updated_at = CURRENT_TIMESTAMP
-        ''', (match_id, json.dumps(goals), opponent_goals, motm_player_id))
+        ''', (match_id, json.dumps(goals), opponent_goals, json.dumps(opponent_goal_times), motm_player_id))
         conn.commit()
 
     return jsonify({'success': True})

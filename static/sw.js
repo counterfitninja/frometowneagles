@@ -1,10 +1,12 @@
 // Service Worker for offline functionality
-const CACHE_NAME = 'football-manager-subs-20261101';
+const CACHE_NAME = 'football-manager-results-20261108-scoreboard';
 const urlsToCache = [
     '/static/manifest.json',
     '/static/design-language.css?v=20260818-rounded',
     '/static/live-match.css?v=20261101',
-    '/static/match-result.js?v=20261004',
+    '/static/match-result.js?v=20261108',
+    '/static/results.css?v=20261108-scoreboard',
+    '/static/results.js?v=20261108-scoreboard',
     '/static/icon-192.svg',
     '/static/icon-512.svg',
     '/static/logo.jpg'

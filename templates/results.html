@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Results - {{ team_title }}{% endblock %}
+{% block body_class %}results-page{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="/static/results.css?v=20261108-scoreboard">
+{% endblock %}
+{% block content %}
+<section class="results-intro">
+    <div>
+        <h2>Results</h2>
+        <p>Past fixtures and today's matches.</p>
+    </div>
+    <a href="/matches" class="btn">Match schedule</a>
+</section>
+<p class="results-time-note">Times show when goals were recorded, in UK clock time, not match minutes.
+    Goals with unknown times appear after timed goals, not necessarily in scoring order.
+    A result's last update cannot tell us when older opposition goals were scored.</p>
+<noscript><p class="results-time-note">Enable JavaScript to see goal times and results saved on this device.</p></noscript>
+<div class="results-list">
+{% for match in matches %}
+<article class="result-fixture" id="result-{{ match.id }}" aria-label="Eagles vs {{ match.opponent }}">
+    <time class="result-date" datetime="{{ match.match_date }}">{{ match.match_date | ukdate }}</time>
+    <div class="result-scoreboard">
+        <div class="result-team result-team-home"><strong>Eagles</strong><img src="/static/logo.jpg" alt="" width="42" height="42"></div>
+        <strong class="result-score{% if not match.hasResult %} is-missing{% endif %}" id="result-score-{{ match.id }}" aria-label="Recorded score">{% if match.hasResult %}<span>{{ match.savedState.goals|length }}</span><span class="result-score-divider"> : </span><span>{{ match.savedState.opponentGoals }}</span>{% else %}Not recorded{% endif %}</strong>
+        <strong class="result-team result-team-away">{{ match.opponent }}</strong>
+    </div>
+    <p class="result-source" id="result-source-{{ match.id }}">{% if match.hasResult %}Recorded score{% else %}No result saved{% endif %}</p>
+    <div class="result-scorers" aria-label="Goalscorers">
+        <p id="result-home-goals-{{ match.id }}">{% for goal in match.savedState.goals %}{{ goal.scorer }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+        <span class="result-row-label">Goals</span>
+        <p id="result-away-goals-{{ match.id }}">{% if match.savedState.opponentGoals %}{{ match.savedState.opponentGoals }} opposition goals{% endif %}</p>
+    </div>
+    <div class="result-assists-row">
+        <p id="result-assists-{{ match.id }}">{% for goal in match.savedState.goals if goal.assist %}{{ goal.assist }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+        <span class="result-row-label">Assists</span>
+        <span aria-hidden="true"></span>
+    </div>
+    <p class="result-error" id="result-error-{{ match.id }}" role="alert" hidden></p>
+    <p class="result-venue">Venue: <strong>{{ match.location or 'Not specified' }}</strong></p>
+    <details class="result-details">
+        <summary>Goal timeline</summary>
+        <ol class="result-timeline" id="result-timeline-{{ match.id }}" aria-label="Goals in recorded time order">
+            {% for goal in match.savedState.goals %}
+            <li><strong>{{ goal.scorer }}</strong>{% if goal.assist %} · Assist: {{ goal.assist }}{% endif %}</li>
+            {% endfor %}
+        </ol>
+    </details>
+    <a href="/matches/{{ match.id }}/live" class="result-edit">Open match / edit result</a>
+</article>
+{% else %}
+<section class="results-empty">
+    <h3>No past fixtures yet</h3>
+    <p>Results appear here on the fixture date. Add your games in the match schedule.</p>
+    <a href="/matches" class="btn">Match schedule</a>
+</section>
+{% endfor %}
+</div>
+<script id="resultsConfig" type="application/json">{{ matches | tojson }}</script>
+{% endblock %}
+{% block extra_js %}
+<script src="/static/results.js?v=20261108-scoreboard" defer></script>
+{% endblock %}

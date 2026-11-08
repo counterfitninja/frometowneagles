@@ -22,6 +22,20 @@ Open **Matches > Live** for a specific fixture, or **Live** in the main navigati
 for the next upcoming match. Tap **Goal!**, select the scorer, then the assister
 (or **No assist**). The pitch and substitution controls stay on the same screen.
 Matches without a selected team can still record results using active players.
+Each opposition goal records the time it is added, saved on the device and uploaded
+with the result. Removing an opposition goal removes the most recent timestamp;
+resetting the result clears them all. These are clock timestamps, not match minutes.
+Older opposition goals keep their score with an unknown time.
+
+Open **More > Results** (also available from the live match and leaderboard) to
+review past fixtures and today's matches, newest first. Each scoreboard shows
+scorers, assists and both teams' goal times in UK clock time. Expand **Goal timeline**
+for the chronological sequence. Goals without timestamps show **Time unknown**; their position
+at the end of the list does not imply they were scored last. Unsynced results
+on this device are labelled; open the match to upload them. Fixtures without
+a saved result show **Not recorded**, rather than an assumed 0-0.
+Older opposition goal times cannot be recovered from the local goal count or
+the server's result-update timestamp.
 
 Double-click a player icon on the pitch to open the substitution picker with
 that player selected to come off, even while pitch edits are locked. Keyboard
