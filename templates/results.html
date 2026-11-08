@@ -2,17 +2,19 @@
 {% block title %}Results - {{ team_title }}{% endblock %}
 {% block body_class %}results-page{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="/static/results.css?v=20261108-scoreboard">
+<link rel="stylesheet" href="/static/results.css?v=20261108-edit-times">
 {% endblock %}
 {% block content %}
-<section class="results-intro">
+<section class="card results-intro">
     <div>
         <h2>Results</h2>
         <p>Past fixtures and today's matches.</p>
     </div>
     <a href="/matches" class="btn">Match schedule</a>
 </section>
-<p class="results-time-note">Times show when goals were recorded, in UK clock time, not match minutes.
+<p class="results-time-note">Goal minutes assume a 2pm UK kick-off on the fixture date.
+    These are estimated elapsed minutes, including any half-time break.
+    Edit goal times using UK clock time.
     Goals with unknown times appear after timed goals, not necessarily in scoring order.
     A result's last update cannot tell us when older opposition goals were scored.</p>
 <noscript><p class="results-time-note">Enable JavaScript to see goal times and results saved on this device.</p></noscript>
@@ -46,6 +48,15 @@
             {% endfor %}
         </ol>
     </details>
+    <details class="result-details result-time-editor" id="result-editor-{{ match.id }}" hidden>
+        <summary>Edit opposition goal times</summary>
+        <form id="result-times-form-{{ match.id }}">
+            <p>Enter UK clock times on {{ match.match_date | ukdate }}. Leave a time blank if unknown.</p>
+            <div id="result-time-fields-{{ match.id }}" class="result-time-fields"></div>
+            <button type="submit" class="btn">Save goal times</button>
+            <p id="result-times-status-{{ match.id }}" role="status" aria-live="polite"></p>
+        </form>
+    </details>
     <a href="/matches/{{ match.id }}/live" class="result-edit">Open match / edit result</a>
 </article>
 {% else %}
@@ -59,5 +70,5 @@
 <script id="resultsConfig" type="application/json">{{ matches | tojson }}</script>
 {% endblock %}
 {% block extra_js %}
-<script src="/static/results.js?v=20261108-scoreboard" defer></script>
+<script src="/static/results.js?v=20261108-edit-times" defer></script>
 {% endblock %}

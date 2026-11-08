@@ -1244,6 +1244,35 @@ def match_result_view(match_id):
         )
     return render_live_match(row)
 
+@app.route('/api/matches/<int:match_id>/opposition-times', methods=['POST'])
+@login_required
+def save_opposition_times(match_id):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Expected opposition goal times'}), 400
+    times = data.get('times')
+    if (not isinstance(times, list)
+            or any(at is not None and (type(at) is not int or not 0 <= at <= 8640000000000000)
+                   for at in times)):
+        return jsonify({'error': 'Each goal time must be a timestamp or null'}), 400
+    with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        result = conn.execute('SELECT * FROM match_results WHERE match_id = ?', (match_id,)).fetchone()
+        if not result:
+            return jsonify({'error': 'Save the match result before editing goal times'}), 404
+        if data.get('previousTimes') != saved_opponent_goal_times(result) or len(times) != result['opponent_goals']:
+            return jsonify({'error': 'The result changed. Reload Results before editing goal times.'}), 409
+        conn.execute('''UPDATE match_results SET opponent_goal_times_json = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE match_id = ?''', (json.dumps(times), match_id))
+        conn.commit()
+    return jsonify({'success': True, 'result': {
+        'goals': json.loads(result['goals_json']),
+        'opponentGoals': result['opponent_goals'],
+        'opponentGoalTimes': times,
+        'motmPlayerId': str(result['motm_player_id']) if result['motm_player_id'] else None
+    }})
+
+
 @app.route('/api/matches/<int:match_id>/result', methods=['GET', 'POST'])
 @login_required
 def api_match_result(match_id):

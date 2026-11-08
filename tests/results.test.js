@@ -18,11 +18,15 @@ class Element {
     replaceChildren() { this.children = []; this.text = ''; }
     get textContent() { return this.text + this.children.map(child => child.textContent).join(''); }
     set textContent(value) { this.text = String(value); this.children = []; }
+    querySelector() {
+        if (!this.button) this.button = new Element();
+        return this.button;
+    }
 }
 
 function setup(options = {}) {
     const match = {
-        id: 7, opponent: 'Town', hasResult: true,
+        id: 7, match_date: '2026-11-08', opponent: 'Town', hasResult: true,
         storageKey: 'matchResult_7', legacyKeys: ['matchDay_match-7', 'matchDay_9'],
         savedState: { goals: [], opponentGoals: 0, opponentGoalTimes: [], motmPlayerId: null },
         ...options.match
@@ -42,11 +46,18 @@ function setup(options = {}) {
             getItem: key => {
                 if (options.storageFails) throw new Error('Storage unavailable');
                 return storage.get(key) || null;
-            }
+            },
+            setItem: (key, value) => storage.set(key, value)
         },
         window: { addEventListener: (name, callback) => { events[name] = callback; } },
         console: { error: (...args) => errors.push(args) },
-        Intl, Date
+        Intl, Date,
+        navigator: { onLine: options.online !== false },
+        fetch: async (url, request) => options.fetch
+            ? options.fetch(url, JSON.parse(request.body))
+            : { ok: true, json: async () => ({
+                success: true, result: { ...match.savedState, opponentGoalTimes: JSON.parse(request.body).times }
+            }) }
     });
     return { element, events, errors, storage, timeline: () => element('result-timeline-7').children };
 }
@@ -64,22 +75,35 @@ test('shows both teams in timestamp order, scorer and assist, then unknown times
     });
     assert.equal(screen.element('result-score-7').textContent, '2 : 2');
     assert.deepEqual(screen.timeline().map(row => row.children[0].textContent),
-        ['14:05:00', '14:10:00', 'Time unknown', 'Time unknown']);
+        ['5 min', '10 min', 'Time unknown', 'Time unknown']);
     assert.equal(screen.timeline()[0].children[1].children[0].textContent, 'Town: goal');
     assert.equal(screen.timeline()[1].children[1].children[0].textContent, 'Eagles: Sam');
     assert.equal(screen.timeline()[1].children[1].children[1].textContent, 'Assist: Alex');
     assert.equal(screen.timeline()[1].children[0].dateTime, '2026-11-08T14:10:00.000Z');
-    assert.equal(screen.element('result-home-goals-7').textContent, 'Sam (14:10:00), Alex (time unknown)');
-    assert.equal(screen.element('result-away-goals-7').textContent, 'Goal (14:05:00), Goal (time unknown)');
-    assert.equal(screen.element('result-assists-7').textContent, 'Alex (14:10:00)');
+    assert.equal(screen.element('result-home-goals-7').textContent, 'Sam (10 min), Alex (time unknown)');
+    assert.equal(screen.element('result-away-goals-7').textContent, 'Goal (5 min), Goal (time unknown)');
+    assert.equal(screen.element('result-assists-7').textContent, 'Alex (10 min)');
 });
 
 test('UK clock times respect daylight saving independently of device timezone', () => {
-    const screen = setup({ match: { savedState: {
+    const screen = setup({ match: { match_date: '2026-07-08', savedState: {
         goals: [{ scorer: 'Sam', at: Date.parse('2026-07-08T14:05:00Z') }],
         opponentGoals: 0, opponentGoalTimes: []
     } } });
-    assert.equal(screen.timeline()[0].children[0].textContent, '15:05:00');
+    assert.equal(screen.timeline()[0].children[0].textContent, '65 min');
+});
+
+test('game minutes use whole elapsed minutes from 2pm and flag pre-kickoff timestamps', () => {
+    const screen = setup({ match: { savedState: {
+        goals: [
+            { scorer: 'Early', at: Date.parse('2026-11-08T13:59:59Z') },
+            { scorer: 'Kick-off', at: Date.parse('2026-11-08T14:00:00Z') },
+            { scorer: 'First', at: Date.parse('2026-11-08T14:00:59Z') },
+            { scorer: 'Next', at: Date.parse('2026-11-08T14:01:00Z') }
+        ], opponentGoals: 0, opponentGoalTimes: []
+    } } });
+    assert.deepEqual(screen.timeline().map(row => row.children[0].textContent),
+        ['before kick-off', '0 min', '0 min', '1 min']);
 });
 
 test('saved goalless draws differ from fixtures without a result', () => {
@@ -160,4 +184,58 @@ test('storage changes refresh unsynced device results', () => {
     }));
     screen.events.storage();
     assert.equal(screen.element('result-score-7').textContent, '0 : 1');
+});
+
+test('historical UK clock edits save without changing score and update device cache', async () => {
+    const screen = setup({ match: { savedState: {
+        goals: [], opponentGoals: 2, opponentGoalTimes: [null, null], motmPlayerId: null
+    } } });
+    const fields = screen.element('result-time-fields-7').children;
+    fields[0].children[0].value = '10:35';
+    fields[1].children[0].value = '';
+    await screen.element('result-times-form-7').onsubmit({ preventDefault() {} });
+    assert.equal(screen.element('result-away-goals-7').textContent, 'Goal (before kick-off), Goal (time unknown)');
+    assert.equal(screen.element('result-times-status-7').textContent, 'Goal times saved.');
+    const saved = JSON.parse(screen.storage.get('matchResult_7'));
+    assert.deepEqual(saved.opponentGoalTimes, [Date.parse('2026-11-08T10:35:00Z'), null]);
+    assert.equal(saved.opponentGoals, 2);
+});
+
+test('historical summer clock times use UK daylight saving', async () => {
+    const screen = setup({ match: {
+        match_date: '2026-07-08', savedState: { goals: [], opponentGoals: 1, opponentGoalTimes: [null] }
+    } });
+    screen.element('result-time-fields-7').children[0].children[0].value = '10:35';
+    await screen.element('result-times-form-7').onsubmit({ preventDefault() {} });
+    assert.equal(JSON.parse(screen.storage.get('matchResult_7')).opponentGoalTimes[0],
+        Date.parse('2026-07-08T09:35:00Z'));
+});
+
+test('clock changes reject ambiguous and nonexistent UK times', async () => {
+    for (const date of ['2026-03-29', '2026-10-25']) {
+        const screen = setup({ match: {
+            match_date: date, savedState: { goals: [], opponentGoals: 1, opponentGoalTimes: [null] }
+        } });
+        screen.element('result-time-fields-7').children[0].children[0].value = '01:30';
+        await screen.element('result-times-form-7').onsubmit({ preventDefault() {} });
+        assert.match(screen.element('result-times-status-7').textContent, /clock change/);
+        assert.equal(screen.storage.has('matchResult_7'), false);
+    }
+});
+
+test('offline edits and conflicts retain entries and report errors', async () => {
+    for (const options of [
+        { online: false },
+        { fetch: async () => ({ ok: false, status: 409 }) }
+    ]) {
+        const screen = setup({ ...options, match: { savedState: {
+            goals: [], opponentGoals: 1, opponentGoalTimes: [null]
+        } } });
+        const input = screen.element('result-time-fields-7').children[0].children[0];
+        input.value = '10:35';
+        await screen.element('result-times-form-7').onsubmit({ preventDefault() {} });
+        assert.equal(input.value, '10:35');
+        assert.match(screen.element('result-times-status-7').textContent, /Reconnect|result changed/);
+        assert.equal(screen.storage.has('matchResult_7'), false);
+    }
 });

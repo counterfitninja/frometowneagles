@@ -8,7 +8,104 @@
         timeZone: 'Europe/London', dateStyle: 'full', timeStyle: 'long'
     });
     const validTime = at => Number.isSafeInteger(at) && at >= 0 && at <= 8640000000000000;
-    const goalTime = at => validTime(at) ? clock.format(at) : 'time unknown';
+    function goalTime(match, at) {
+        if (!validTime(at)) return 'time unknown';
+        const elapsed = at - clockTimestamp(match.match_date, '14:00');
+        return elapsed < 0 ? 'before kick-off' : Math.floor(elapsed / 60000) + ' min';
+    }
+    const ukDate = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+
+    function clockTimestamp(date, value) {
+        if (!value) return null;
+        if (!/^\d{2}:\d{2}(:\d{2})?$/.test(value)) throw new Error('Enter a valid clock time.');
+        const wanted = value.length === 5 ? value + ':00' : value;
+        const utc = Date.parse(date + 'T' + wanted + 'Z');
+        const candidates = [utc, utc - 3600000].filter(at => {
+            if (!validTime(at) || clock.format(at) !== wanted) return false;
+            const parts = Object.fromEntries(ukDate.formatToParts(at).map(part => [part.type, part.value]));
+            return parts.year + '-' + parts.month + '-' + parts.day === date;
+        });
+        if (candidates.length !== 1) {
+            throw new Error('This UK time is ambiguous or does not exist due to the clock change. Choose another time.');
+        }
+        return candidates[0];
+    }
+
+    function renderEditor(match, result, isLocal) {
+        const editor = document.getElementById('result-editor-' + match.id);
+        editor.hidden = !result.opponentGoals;
+        const form = document.getElementById('result-times-form-' + match.id);
+        const fields = document.getElementById('result-time-fields-' + match.id);
+        const status = document.getElementById('result-times-status-' + match.id);
+        fields.replaceChildren();
+        const previousTimes = Array.from({ length: result.opponentGoals },
+            (_, index) => (result.opponentGoalTimes || [])[index] ?? null);
+        const inputs = previousTimes.map((at, index) => {
+            const label = document.createElement('label');
+            label.textContent = 'Opposition goal ' + (index + 1);
+            const input = document.createElement('input');
+            input.type = 'time';
+            input.step = '1';
+            input.value = validTime(at) ? clock.format(at) : '';
+            input.disabled = isLocal;
+            label.appendChild(input);
+            fields.appendChild(label);
+            return input;
+        });
+        const button = form.querySelector('button');
+        button.disabled = isLocal || Boolean(match.timeEditBlocked);
+        status.textContent = isLocal ? 'Open the match and upload this device\'s result before editing times.' : '';
+        form.onsubmit = async event => {
+            event.preventDefault();
+            button.disabled = true;
+            try {
+                if (!navigator.onLine) throw new Error('Reconnect before saving goal times. Your entries are still here.');
+                const local = localResult(match);
+                if (local) throw new Error('Upload this device\'s result from the live match before editing times.');
+                const times = inputs.map((input, index) =>
+                    validTime(previousTimes[index]) && input.value === clock.format(previousTimes[index])
+                        ? previousTimes[index] : clockTimestamp(match.match_date, input.value));
+                status.textContent = 'Saving goal times...';
+                const response = await fetch('/api/matches/' + match.id + '/opposition-times', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ times, previousTimes })
+                });
+                if (!response.ok) {
+                    if (response.status === 409) throw new Error('The result changed. Reload Results before editing goal times.');
+                    throw new Error('Could not save goal times. Check your connection or login and try again.');
+                }
+                const body = await response.json();
+                if (!body.success || !body.result) throw new Error(body.error || 'Could not save goal times.');
+                match.savedState = body.result;
+                let deviceWarning = '';
+                try {
+                    const raw = localStorage.getItem(match.storageKey);
+                    const saved = raw ? JSON.parse(raw) : null;
+                    if (saved && saved.pendingSync) {
+                        deviceWarning = ' This device has newer unsynced changes; check the live match before uploading.';
+                        match.timeEditBlocked = true;
+                    } else {
+                        localStorage.setItem(match.storageKey, JSON.stringify({
+                            ...match.savedState, pendingSync: false
+                        }));
+                    }
+                } catch (cause) {
+                    console.error('Cannot update this device\'s saved goal times', cause);
+                    deviceWarning = ' Saved on the server, but this device could not be updated.';
+                }
+                render(match, match.savedState, false);
+                status.textContent = 'Goal times saved.' + deviceWarning;
+            } catch (cause) {
+                console.error('Cannot save opposition goal times', cause);
+                status.textContent = cause.message;
+            } finally {
+                button.disabled = isLocal || Boolean(match.timeEditBlocked);
+            }
+        };
+    }
 
     function localResult(match) {
         for (const key of [match.storageKey, ...match.legacyKeys]) {
@@ -30,6 +127,7 @@
     }
 
     function render(match, result, isLocal) {
+        renderEditor(match, result, isLocal);
         const hasResult = match.hasResult || isLocal;
         const score = document.getElementById('result-score-' + match.id);
         score.replaceChildren();
@@ -65,14 +163,14 @@
             });
         }
         document.getElementById('result-home-goals-' + match.id).textContent = result.goals.length
-            ? result.goals.map(goal => goal.scorer + ' (' + goalTime(goal.at) + ')').join(', ')
+            ? result.goals.map(goal => goal.scorer + ' (' + goalTime(match, goal.at) + ')').join(', ')
             : hasResult ? 'No goals' : '-';
         document.getElementById('result-away-goals-' + match.id).textContent = result.opponentGoals
-            ? events.filter(event => event.opposition).map(event => 'Goal (' + goalTime(event.at) + ')').join(', ')
+            ? events.filter(event => event.opposition).map(event => 'Goal (' + goalTime(match, event.at) + ')').join(', ')
             : hasResult ? 'No goals' : '-';
         const assists = result.goals.filter(goal => goal.assist);
         document.getElementById('result-assists-' + match.id).textContent = assists.length
-            ? assists.map(goal => goal.assist + ' (' + goalTime(goal.at) + ')').join(', ')
+            ? assists.map(goal => goal.assist + ' (' + goalTime(match, goal.at) + ')').join(', ')
             : 'No assists recorded';
         events.sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity));
         const timeline = document.getElementById('result-timeline-' + match.id);
@@ -82,7 +180,7 @@
             entry.className = 'result-event' + (event.opposition ? ' is-opposition' : '');
             const time = document.createElement(event.at === null ? 'span' : 'time');
             time.className = 'result-event-time';
-            time.textContent = event.at === null ? 'Time unknown' : clock.format(event.at);
+            time.textContent = event.at === null ? 'Time unknown' : goalTime(match, event.at);
             if (event.at !== null) {
                 time.dateTime = new Date(event.at).toISOString();
                 time.title = fullDate.format(event.at);

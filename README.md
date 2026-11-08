@@ -29,13 +29,20 @@ Older opposition goals keep their score with an unknown time.
 
 Open **More > Results** (also available from the live match and leaderboard) to
 review past fixtures and today's matches, newest first. Each scoreboard shows
-scorers, assists and both teams' goal times in UK clock time. Expand **Goal timeline**
+scorers, assists and both teams' estimated goal minutes from a 2pm UK kick-off.
+These elapsed minutes include any half-time break; original clock timestamps remain
+saved and available in the time editor. Goals before 2pm are labelled **before kick-off**.
+Expand **Goal timeline**
 for the chronological sequence. Goals without timestamps show **Time unknown**; their position
 at the end of the list does not imply they were scored last. Unsynced results
 on this device are labelled; open the match to upload them. Fixtures without
 a saved result show **Not recorded**, rather than an assumed 0-0.
 Older opposition goal times cannot be recovered from the local goal count or
 the server's result-update timestamp.
+Use **Edit opposition goal times** beneath a result to enter historical UK clock
+times on its fixture date. Blank fields remain unknown. Save while online; upload
+pending device results from the live match first. Editing times leaves scores,
+scorers and assists unchanged. Conflicting server changes require a reload.
 
 Double-click a player icon on the pitch to open the substitution picker with
 that player selected to come off, even while pitch edits are locked. Keyboard

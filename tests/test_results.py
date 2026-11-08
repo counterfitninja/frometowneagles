@@ -81,6 +81,34 @@ class ResultsTests(unittest.TestCase):
         for path in ('/matches', f'/matches/{match_id}/live', '/stats'):
             self.assertIn('href="/results"', self.page(path))
 
+    def test_edit_opposition_times_preserves_all_other_result_fields(self):
+        match_id = self.fixture(-1)
+        payload = {
+            'goals': [{'scorer_id': '1', 'scorer': 'Alex', 'assist_id': '2', 'assist': 'Alex', 'at': 1000}],
+            'opponentGoals': 2, 'opponentGoalTimes': [None, None], 'motmPlayerId': '1'
+        }
+        self.client.post(f'/api/matches/{match_id}/result', json=payload)
+        response = self.client.post(f'/api/matches/{match_id}/opposition-times',
+                                    json={'times': [2000, None], 'previousTimes': [None, None]})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.get(f'/api/matches/{match_id}/result').get_json(),
+                         {**payload, 'opponentGoalTimes': [2000, None]})
+        for data, code in [
+            ({'times': [3000, None], 'previousTimes': [None, None]}, 409),
+            ({'times': [], 'previousTimes': [2000, None]}, 409),
+            ({'times': [True, None], 'previousTimes': [2000, None]}, 400),
+            ({'times': [-1, None], 'previousTimes': [2000, None]}, 400),
+            (None, 400)
+        ]:
+            self.assertEqual(self.client.post(f'/api/matches/{match_id}/opposition-times',
+                                             json=data).status_code, code)
+        self.assertEqual(self.client.get(f'/api/matches/{match_id}/result').get_json()['opponentGoalTimes'],
+                         [2000, None])
+        with self.client.session_transaction() as session:
+            session.clear()
+        self.assertEqual(self.client.post(f'/api/matches/{match_id}/opposition-times',
+                                         json={'times': []}).status_code, 302)
+
 
 if __name__ == '__main__':
     unittest.main()
