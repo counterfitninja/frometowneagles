@@ -8,13 +8,19 @@
         timeZone: 'Europe/London', dateStyle: 'full', timeStyle: 'long'
     });
     const validTime = at => Number.isSafeInteger(at) && at >= 0 && at <= 8640000000000000;
+    function matchMinute(match, at) {
+        if (!validTime(at)) return null;
+        const elapsed = (at - clockTimestamp(match.match_date, '14:00')) / 60000;
+        if (elapsed < 0 || (elapsed >= 35 && elapsed < 45) || elapsed > 80) return null;
+        return Math.floor(elapsed >= 45 ? elapsed - 10 : elapsed);
+    }
     function goalTime(match, at) {
         if (!validTime(at)) return 'time unknown';
         const elapsed = (at - clockTimestamp(match.match_date, '14:00')) / 60000;
         if (elapsed < 0) return 'before kick-off';
         if (elapsed >= 35 && elapsed < 45) return 'half-time';
         if (elapsed > 80) return 'after full-time';
-        return Math.floor(elapsed >= 45 ? elapsed - 10 : elapsed) + ' min';
+        return matchMinute(match, at) + ' min';
     }
     const ukDate = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -36,6 +42,15 @@
         return candidates[0];
     }
 
+    function minuteTimestamp(match, value) {
+        if (value === '') return null;
+        if (!/^\d+$/.test(value) || Number(value) > 70) {
+            throw new Error('Enter a whole match minute from 0 to 70, or leave it blank.');
+        }
+        const minute = Number(value);
+        return clockTimestamp(match.match_date, '14:00') + (minute >= 35 ? minute + 10 : minute) * 60000;
+    }
+
     function renderEditor(match, result, isLocal) {
         const editor = document.getElementById('result-editor-' + match.id);
         editor.hidden = !result.opponentGoals;
@@ -45,15 +60,29 @@
         fields.replaceChildren();
         const previousTimes = Array.from({ length: result.opponentGoals },
             (_, index) => (result.opponentGoalTimes || [])[index] ?? null);
+        const initialValues = previousTimes.map(at => {
+            const minute = matchMinute(match, at);
+            return minute === null ? '' : String(minute);
+        });
         const inputs = previousTimes.map((at, index) => {
             const label = document.createElement('label');
-            label.textContent = 'Opposition goal ' + (index + 1);
+            label.textContent = 'Opposition goal ' + (index + 1) + ' minute';
             const input = document.createElement('input');
-            input.type = 'time';
+            input.type = 'number';
+            input.min = '0';
+            input.max = '70';
             input.step = '1';
-            input.value = validTime(at) ? clock.format(at) : '';
+            input.inputMode = 'numeric';
+            input.value = initialValues[index];
+            if (validTime(at)) input.title = 'Saved clock time: ' + fullDate.format(at);
             input.disabled = isLocal;
             label.appendChild(input);
+            if (validTime(at) && initialValues[index] === '') {
+                const note = document.createElement('small');
+                note.textContent = 'Saved as ' + clock.format(at) + ' (' + goalTime(match, at)
+                    + '). Enter a minute to correct it; leaving it unchanged preserves the time.';
+                label.appendChild(note);
+            }
             fields.appendChild(label);
             return input;
         });
@@ -68,8 +97,8 @@
                 const local = localResult(match);
                 if (local) throw new Error('Upload this device\'s result from the live match before editing times.');
                 const times = inputs.map((input, index) =>
-                    validTime(previousTimes[index]) && input.value === clock.format(previousTimes[index])
-                        ? previousTimes[index] : clockTimestamp(match.match_date, input.value));
+                    input.value === initialValues[index]
+                        ? previousTimes[index] : minuteTimestamp(match, input.value));
                 status.textContent = 'Saving goal times...';
                 const response = await fetch('/api/matches/' + match.id + '/opposition-times', {
                     method: 'POST',
@@ -169,7 +198,9 @@
             ? result.goals.map(goal => goal.scorer + ' (' + goalTime(match, goal.at) + ')').join(', ')
             : hasResult ? 'No goals' : '-';
         document.getElementById('result-away-goals-' + match.id).textContent = result.opponentGoals
-            ? events.filter(event => event.opposition).map(event => 'Goal (' + goalTime(match, event.at) + ')').join(', ')
+            ? events.filter(event => event.opposition)
+                .sort((a, b) => (a.at ?? Infinity) - (b.at ?? Infinity))
+                .map(event => 'Goal (' + goalTime(match, event.at) + ')').join(', ')
             : hasResult ? 'No goals' : '-';
         const assists = result.goals.filter(goal => goal.assist);
         document.getElementById('result-assists-' + match.id).textContent = assists.length

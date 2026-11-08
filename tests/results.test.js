@@ -209,39 +209,39 @@ test('storage changes refresh unsynced device results', () => {
     assert.equal(screen.element('result-score-7').textContent, '0 : 1');
 });
 
-test('historical UK clock edits save without changing score and update device cache', async () => {
+test('historical minute edits save without changing score and update device cache', async () => {
     const screen = setup({ match: { savedState: {
         goals: [], opponentGoals: 2, opponentGoalTimes: [null, null], motmPlayerId: null
     } } });
     const fields = screen.element('result-time-fields-7').children;
-    fields[0].children[0].value = '10:35';
+    fields[0].children[0].value = '40';
     fields[1].children[0].value = '';
     await screen.element('result-times-form-7').onsubmit({ preventDefault() {} });
-    assert.equal(screen.element('result-away-goals-7').textContent, 'Goal (before kick-off), Goal (time unknown)');
+    assert.equal(screen.element('result-away-goals-7').textContent, 'Goal (40 min), Goal (time unknown)');
     assert.equal(screen.element('result-times-status-7').textContent, 'Goal times saved.');
     const saved = JSON.parse(screen.storage.get('matchResult_7'));
-    assert.deepEqual(saved.opponentGoalTimes, [Date.parse('2026-11-08T10:35:00Z'), null]);
+    assert.deepEqual(saved.opponentGoalTimes, [Date.parse('2026-11-08T14:50:00Z'), null]);
     assert.equal(saved.opponentGoals, 2);
 });
 
-test('historical summer clock times use UK daylight saving', async () => {
+test('historical summer minute edits use UK daylight saving', async () => {
     const screen = setup({ match: {
         match_date: '2026-07-08', savedState: { goals: [], opponentGoals: 1, opponentGoalTimes: [null] }
     } });
-    screen.element('result-time-fields-7').children[0].children[0].value = '10:35';
+    screen.element('result-time-fields-7').children[0].children[0].value = '40';
     await screen.element('result-times-form-7').onsubmit({ preventDefault() {} });
     assert.equal(JSON.parse(screen.storage.get('matchResult_7')).opponentGoalTimes[0],
-        Date.parse('2026-07-08T09:35:00Z'));
+        Date.parse('2026-07-08T13:50:00Z'));
 });
 
-test('clock changes reject ambiguous and nonexistent UK times', async () => {
-    for (const date of ['2026-03-29', '2026-10-25']) {
+test('invalid minutes are rejected without saving', async () => {
+    for (const value of ['-1', '71', '1.5', '14:30', 'abc']) {
         const screen = setup({ match: {
-            match_date: date, savedState: { goals: [], opponentGoals: 1, opponentGoalTimes: [null] }
+            savedState: { goals: [], opponentGoals: 1, opponentGoalTimes: [null] }
         } });
-        screen.element('result-time-fields-7').children[0].children[0].value = '01:30';
+        screen.element('result-time-fields-7').children[0].children[0].value = value;
         await screen.element('result-times-form-7').onsubmit({ preventDefault() {} });
-        assert.match(screen.element('result-times-status-7').textContent, /clock change/);
+        assert.match(screen.element('result-times-status-7').textContent, /whole match minute/);
         assert.equal(screen.storage.has('matchResult_7'), false);
     }
 });
@@ -255,10 +255,42 @@ test('offline edits and conflicts retain entries and report errors', async () =>
             goals: [], opponentGoals: 1, opponentGoalTimes: [null]
         } } });
         const input = screen.element('result-time-fields-7').children[0].children[0];
-        input.value = '10:35';
+        input.value = '40';
         await screen.element('result-times-form-7').onsubmit({ preventDefault() {} });
-        assert.equal(input.value, '10:35');
+        assert.equal(input.value, '40');
         assert.match(screen.element('result-times-status-7').textContent, /Reconnect|result changed/);
         assert.equal(screen.storage.has('matchResult_7'), false);
     }
+});
+
+test('minute conversion round trips half boundaries and timeline sorts unsorted goal entries', async () => {
+    const minutes = [70, 35, 0, 34, 40];
+    const screen = setup({ match: { savedState: {
+        goals: [{ scorer: 'Sam', at: Date.parse('2026-11-08T14:48:00Z') }],
+        opponentGoals: minutes.length, opponentGoalTimes: minutes.map(() => null)
+    } } });
+    screen.element('result-time-fields-7').children.forEach((label, index) => {
+        label.children[0].value = String(minutes[index]);
+    });
+    await screen.element('result-times-form-7').onsubmit({ preventDefault() {} });
+    assert.deepEqual(screen.element('result-time-fields-7').children.map(label => label.children[0].value),
+        minutes.map(String));
+    assert.deepEqual(screen.timeline().map(row => row.children[0].textContent),
+        ['0 min', '34 min', '35 min', '38 min', '40 min', '70 min']);
+    assert.equal(screen.element('result-away-goals-7').textContent,
+        'Goal (0 min), Goal (34 min), Goal (35 min), Goal (40 min), Goal (70 min)');
+});
+
+test('unchanged minute fields preserve original seconds and timestamps outside playing time', async () => {
+    const times = [
+        Date.parse('2026-11-08T14:50:45Z'),
+        Date.parse('2026-11-08T14:40:00Z')
+    ];
+    const screen = setup({ match: { savedState: {
+        goals: [], opponentGoals: 2, opponentGoalTimes: times
+    } } });
+    assert.equal(screen.element('result-time-fields-7').children[0].children[0].value, '40');
+    assert.equal(screen.element('result-time-fields-7').children[1].children[0].value, '');
+    await screen.element('result-times-form-7').onsubmit({ preventDefault() {} });
+    assert.deepEqual(JSON.parse(screen.storage.get('matchResult_7')).opponentGoalTimes, times);
 });

@@ -15,7 +15,7 @@
 <p class="results-time-note">Goal minutes assume a 2pm UK kick-off on the fixture date.
     Each half lasts 35 minutes, with a 10-minute break from 2:35pm to 2:45pm.
     Second-half minutes exclude the break; full-time is assumed at 3:20pm.
-    Edit goal times using UK clock time.
+    Edit opposition goals by entering the match minute.
     Goals with unknown times appear after timed goals, not necessarily in scoring order.
     A result's last update cannot tell us when older opposition goals were scored.</p>
 <noscript><p class="results-time-note">Enable JavaScript to see goal times and results saved on this device.</p></noscript>
@@ -52,7 +52,10 @@
     <details class="result-details result-time-editor" id="result-editor-{{ match.id }}" hidden>
         <summary>Edit opposition goal times</summary>
         <form id="result-times-form-{{ match.id }}">
-            <p>Enter UK clock times on {{ match.match_date | ukdate }}. Leave a time blank if unknown.</p>
+            <p>Enter whole match minutes from 0 to 70. Times are calculated from a 2pm UK kick-off
+                on {{ match.match_date | ukdate }}, including the 10-minute break.
+                Minute 35 maps to the second-half start at 2:45pm. Leave unknown times blank.
+                Unchanged entries keep their original timestamps, including seconds.</p>
             <div id="result-time-fields-{{ match.id }}" class="result-time-fields"></div>
             <button type="submit" class="btn">Save goal times</button>
             <p id="result-times-status-{{ match.id }}" role="status" aria-live="polite"></p>
@@ -71,5 +74,5 @@
 <script id="resultsConfig" type="application/json">{{ matches | tojson }}</script>
 {% endblock %}
 {% block extra_js %}
-<script src="/static/results.js?v=20261108-halves" defer></script>
+<script src="/static/results.js?v=20261108-minute-editor" defer></script>
 {% endblock %}

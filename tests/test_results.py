@@ -41,7 +41,7 @@ class ResultsTests(unittest.TestCase):
         html = self.page('/results')
         self.assertIn('Not recorded', html)
         self.assertIn(f'/matches/{old}/live', html)
-        self.assertIn('UK clock time', html)
+        self.assertIn('Enter whole match minutes from 0 to 70', html)
         self.assertIn('Town&#39;s &lt;/script&gt;', html)
 
     def test_saved_zero_zero_is_a_result(self):

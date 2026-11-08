@@ -32,7 +32,7 @@ review past fixtures and today's matches, newest first. Each scoreboard shows
 scorers, assists and both teams' estimated goal minutes from a 2pm UK kick-off.
 Each half lasts 35 minutes, with a 10-minute half-time break from 2:35pm to 2:45pm.
 Second-half minutes subtract the break (2:50pm shows 40 min); full-time is 3:20pm.
-Original clock timestamps remain saved and available in the time editor. Timestamps
+Original clock timestamps remain saved (shown on hovering an existing editor field). Timestamps
 before kick-off, during half-time or after full-time are labelled accordingly.
 Expand **Goal timeline**
 for the chronological sequence. Goals without timestamps show **Time unknown**; their position
@@ -41,8 +41,12 @@ on this device are labelled; open the match to upload them. Fixtures without
 a saved result show **Not recorded**, rather than an assumed 0-0.
 Older opposition goal times cannot be recovered from the local goal count or
 the server's result-update timestamp.
-Use **Edit opposition goal times** beneath a result to enter historical UK clock
-times on its fixture date. Blank fields remain unknown. Save while online; upload
+Use **Edit opposition goal times** beneath a result to enter whole match minutes
+from 0 to 70. The app calculates the timestamp on the fixture date from the 2pm
+UK kick-off and 10-minute break (40 min becomes 2:50pm). Minute 35 maps to the
+second-half start at 2:45pm. Unchanged fields preserve original timestamps and
+seconds; blank unknown fields stay unknown. Goals are displayed in timestamp order.
+Save while online; upload
 pending device results from the live match first. Editing times leaves scores,
 scorers and assists unchanged. Conflicting server changes require a reload.
 
