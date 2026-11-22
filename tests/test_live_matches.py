@@ -459,7 +459,8 @@ class LiveMatchTests(unittest.TestCase):
         with self.client.get('/static/sw.js') as response:
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.headers['Service-Worker-Allowed'], '/')
-        for asset in ('live-match.css?v=20261101', 'match-result.js?v=20261108',
+        for asset in ('live-match.css?v=20261122-scorer-controls',
+                      'match-result.js?v=20261122-scorer-controls',
                       'icon-192.svg', 'icon-512.svg'):
             with self.client.get('/static/' + asset) as response:
                 self.assertEqual(response.status_code, 200)
