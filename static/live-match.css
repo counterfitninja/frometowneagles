@@ -1,7 +1,8 @@
 .live-screen {
     height: auto;
     min-height: 100dvh;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     padding: 0 !important;
     background: var(--fte-dugout);
 }
