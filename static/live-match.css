@@ -229,10 +229,16 @@
     padding: 12px 0;
     border-top: 1px solid var(--fte-slate-2);
 }
-.goal-entry p { flex: 1; font-size: 14px; }
+.goal-entry p {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
 .goal-entry strong { display: block; color: var(--fte-gold); }
 .goal-entry span { font-size: 12px; color: var(--fte-paper-line); }
 .goal-entry button {
+    flex: 0 0 auto;
     padding: 10px;
     border: 1px solid var(--fte-slate);
     background: transparent;

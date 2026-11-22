@@ -128,6 +128,17 @@ test('no assist is optional and cancelling records nothing', async () => {
     assert.equal(screen.requests[0].body.goals[0].assist, null);
 });
 
+test('renders both edit and remove controls for recorded goals', async () => {
+    const screen = setup();
+    screen.api.chooseScorer();
+    screen.pick('Sam');
+    screen.pick('No assist');
+    await tick();
+
+    const goalEntry = screen.element('goalLog').children[0];
+    assert.deepEqual(goalEntry.children.slice(1).map(child => child.textContent), ['Remove', 'Edit']);
+});
+
 test('edits a recorded goal scorer and assist by player ID', async () => {
     const screen = setup();
     screen.api.chooseScorer();
