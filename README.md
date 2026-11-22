@@ -50,6 +50,8 @@ Save while online; upload
 pending device results from the live match first. Editing times leaves scores,
 scorers and assists unchanged. Conflicting server changes require a reload.
 
+Use **Add player** to put a late-arriving active player on the bench, then use
+**Sub Made** to bring them on. The addition is saved to that match's lineup.
 Double-click a player icon on the pitch to open the substitution picker with
 that player selected to come off, even while pitch edits are locked. Keyboard
 users can focus the icon and press Enter or Space; **Sub Made** also works with
@@ -61,7 +63,10 @@ cleared by **Reset substitutions**. The saved lineup includes returning bench
 players, so they remain available when opened on another device; counts stay
 device-local.
 
-Expand **Goals and assists** to review or remove goals. **More** contains result
+Expand **Goals and assists** to review, edit or remove goals. For a player added
+after kick-off, open the past match from Results and use **Edit** on the goal;
+past matches include all active players in the scorer and assist picker.
+**More** contains result
 sharing, man of the match, score corrections, whole-team switching and separate
 resets for results and substitutions. Results are saved on the device and uploaded
 when connected; the screen shows upload failures with a retry action. Existing

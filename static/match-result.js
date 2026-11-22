@@ -2,6 +2,7 @@
     'use strict';
 
     const config = JSON.parse(document.getElementById('resultConfig').textContent);
+    const resultSquad = config.resultSquad || config.squad;
     const picker = document.getElementById('resultPicker');
     const status = document.getElementById('resultStatus');
     const retry = document.getElementById('retryResult');
@@ -78,8 +79,8 @@
 
     function playerForGoal(goal, role) {
         const id = goal[role + '_id'];
-        if (id != null) return config.squad.find(player => String(player.id) === String(id));
-        const matches = config.squad.filter(player => player.name === goal[role]);
+        if (id != null) return resultSquad.find(player => String(player.id) === String(id));
+        const matches = resultSquad.filter(player => player.name === goal[role]);
         return matches.length === 1 ? matches[0] : null;
     }
 
@@ -173,7 +174,7 @@
         document.getElementById('usScore').textContent = result.goals.length;
         document.getElementById('themScore').textContent = result.opponentGoals;
         document.getElementById('goalLogSummary').textContent = 'Goals and assists · ' + result.goals.length;
-        const motm = config.squad.find(player => String(player.id) === String(result.motmPlayerId));
+        const motm = resultSquad.find(player => String(player.id) === String(result.motmPlayerId));
         document.getElementById('motmButton').textContent = motm
             ? 'Man of the match: ' + motm.name : 'Choose man of the match';
         const log = document.getElementById('goalLog');
@@ -202,7 +203,12 @@
                 result.goals.splice(index, 1);
                 save();
             };
-            entry.append(text, remove);
+            const edit = document.createElement('button');
+            edit.type = 'button';
+            edit.textContent = 'Edit';
+            edit.setAttribute('aria-label', 'Edit goal ' + (index + 1) + ' by ' + goal.scorer);
+            edit.onclick = () => window.matchResult.editGoal(index);
+            entry.append(text, remove, edit);
             log.appendChild(entry);
         });
     }
@@ -226,9 +232,9 @@
             grid.appendChild(button);
         };
         if (emptyLabel) addChoice(emptyLabel, null, true);
-        config.squad.forEach(player => {
+        resultSquad.forEach(player => {
             if (String(player.id) === String(excludedId)) return;
-            const duplicate = config.squad.some(other => other.id !== player.id && other.name === player.name);
+            const duplicate = resultSquad.some(other => other.id !== player.id && other.name === player.name);
             addChoice(player.name + (duplicate ? ' · ' + (player.position || 'Player') + ' #' + player.id : ''), player);
         });
         if (!grid.children.length) {
@@ -261,6 +267,26 @@
                         assist: assist ? assist.name : null,
                         at: Date.now()
                     });
+                    closePicker();
+                    save();
+                }, 'No assist', scorer.id);
+            });
+        },
+        editGoal(index) {
+            if (!result || !result.goals[index]) return;
+            const goal = result.goals[index];
+            showPicker('Who scored?', scorer => {
+                const updatedGoal = {
+                    ...goal,
+                    scorer_id: String(scorer.id),
+                    scorer: scorer.name
+                };
+                showPicker('Who assisted?', assist => {
+                    result.goals[index] = {
+                        ...updatedGoal,
+                        assist_id: assist ? String(assist.id) : null,
+                        assist: assist ? assist.name : null
+                    };
                     closePicker();
                     save();
                 }, 'No assist', scorer.id);
@@ -301,7 +327,7 @@
             result.goals.forEach(goal => {
                 text += '\n' + goal.scorer + (goal.assist ? ' (assist: ' + goal.assist + ')' : '');
             });
-            const motm = config.squad.find(player => String(player.id) === String(result.motmPlayerId));
+            const motm = resultSquad.find(player => String(player.id) === String(result.motmPlayerId));
             if (motm) text += '\nMan of the match: ' + motm.name;
             try {
                 if (navigator.share) await navigator.share({ text });

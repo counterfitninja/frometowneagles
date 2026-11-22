@@ -1074,6 +1074,82 @@ def save_formation():
     
     return jsonify({'success': True, 'id': saved_id})
 
+@app.route('/api/matches/<int:match_id>/formation', methods=['POST'])
+@login_required
+def save_match_formation(match_id):
+    """Save live lineup edits without changing another match's shared team."""
+    import json
+
+    data = request.get_json(silent=True) or {}
+    name = data.get('name')
+    formation_data = data.get('data')
+    try:
+        parsed = json.loads(formation_data)
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': 'Invalid formation data.'}), 400
+    if not isinstance(parsed, dict) or not isinstance(parsed.get('formations'), list):
+        return jsonify({'success': False, 'error': 'Invalid formation data.'}), 400
+
+    with get_db() as conn:
+        match = conn.execute(
+            'SELECT match_date, formation_id FROM matches WHERE id = ?', (match_id,)
+        ).fetchone()
+        if not match:
+            return jsonify({'success': False, 'error': 'Match not found.'}), 404
+        if not match['formation_id']:
+            return jsonify({'success': False, 'error': 'Match has no formation.'}), 404
+
+        selected_ids = set()
+        for formation in parsed['formations']:
+            if not isinstance(formation, dict):
+                return jsonify({'success': False, 'error': 'Invalid formation data.'}), 400
+            for key in ('players', 'subs', 'squad'):
+                selections = formation.get(key, [])
+                if (not isinstance(selections, list)
+                        or any(not isinstance(player, dict) or 'id' not in player
+                               for player in selections)):
+                    return jsonify({'success': False, 'error': 'Invalid formation data.'}), 400
+                selected_ids.update(str(player['id']) for player in selections)
+
+        if match['match_date'] >= datetime.now().date().isoformat():
+            retired_ids = {
+                str(player['id'])
+                for player in conn.execute("SELECT id FROM players WHERE status = 'retired'")
+            }
+            if selected_ids & retired_ids:
+                return jsonify({
+                    'success': False,
+                    'error': 'Retired players cannot be selected for upcoming teams.'
+                }), 400
+
+        formation_id = match['formation_id']
+        formation = conn.execute(
+            'SELECT name, private_team FROM formations WHERE id = ?', (formation_id,)
+        ).fetchone()
+        if not formation:
+            return jsonify({'success': False, 'error': 'Formation not found.'}), 404
+
+        shared = conn.execute(
+            'SELECT COUNT(*) FROM matches WHERE formation_id = ?', (formation_id,)
+        ).fetchone()[0] > 1
+        if shared:
+            cursor = conn.execute(
+                'INSERT INTO formations (name, data, private_team) VALUES (?, ?, ?)',
+                (name or formation['name'], formation_data, formation['private_team'] or 0)
+            )
+            formation_id = cursor.lastrowid
+            conn.execute(
+                'UPDATE matches SET formation_id = ? WHERE id = ?', (formation_id, match_id)
+            )
+        else:
+            conn.execute(
+                'UPDATE formations SET name = ?, data = ? WHERE id = ?',
+                (name or formation['name'], formation_data, formation_id)
+            )
+        conn.commit()
+
+    return jsonify({'success': True, 'id': formation_id})
+
 @app.route('/formations/<int:formation_id>/delete', methods=['POST'])
 @login_required
 def delete_formation(formation_id):
@@ -1159,6 +1235,7 @@ def render_live_match(row, formation_id=None, formation_name=None, formations=No
     import json
     formations = formations or []
     saved_goals = json.loads(row['goals_json'] or '[]')
+    is_past_match = bool(row['match_date'] and row['match_date'] < datetime.now().date().isoformat())
     referenced_ids = {
         str(goal[key])
         for goal in saved_goals
@@ -1182,6 +1259,15 @@ def render_live_match(row, formation_id=None, formation_name=None, formations=No
         for player in all_players
         if str(player['id']) in referenced_ids
         or (str(player['id']) in squad_ids if formations else player['status'] == 'active')
+    ]
+    result_squad = (
+        [dict(player) for player in all_players
+         if str(player['id']) in referenced_ids or player['status'] == 'active']
+        if is_past_match else squad
+    )
+    available_players = [
+        dict(player) for player in all_players
+        if player['status'] == 'active'
     ]
 
     match_date_display = row['match_date'] or ''
@@ -1207,6 +1293,8 @@ def render_live_match(row, formation_id=None, formation_name=None, formations=No
             'matchId': match_id,
             'opponent': row['opponent'] or 'Opponent',
             'squad': squad,
+            'resultSquad': result_squad,
+            'availablePlayers': available_players,
             'storageKey': 'matchResult_' + (str(match_id) if match_id else 'formation-' + str(formation_id)),
             'legacyKeys': legacy_keys,
             'savedState': {

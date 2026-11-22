@@ -14,7 +14,6 @@
         html, body {
             height: 100%;
             overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #1a2035;
             color: white;
         }
@@ -579,6 +578,7 @@
         ⚽ vs {{ opponent }}
         <small>{{ match_date_display }}{% if location %} · {{ location }}{% endif %}</small>
     </div>
+
     <details class="live-more" id="liveMore">
         <summary>More</summary>
         <div class="live-more-actions">
@@ -654,9 +654,11 @@
     </div>
     <div class="action-row">
         <button class="sub-btn" id="subBtn" onclick="openSubModal()">🔄 Sub Made</button>
+        <button class="sub-btn add-player-btn" id="addPlayerBtn" onclick="openLatePlayerModal()">＋ Add player</button>
         <div class="sub-tally" id="subTally">0 subs</div>
     </div>
-    <p class="sub-help">Double-click a player to sub them off. Badges show times off. Bench players can come back on.</p>
+    <p class="sub-help">Double-click a player to sub them off. Bench players can come back on.
+        Add a late arrival to the bench before bringing them on.</p>
     <div class="sub-log" id="subLog"></div>
 </div>
 {% else %}
@@ -670,6 +672,7 @@
 
 <details class="goal-history">
     <summary id="goalLogSummary">Goals and assists · 0</summary>
+    <p class="goal-history-help">Edit a recorded goal to correct its scorer or assist.</p>
     <div id="goalLog"></div>
 </details>
 
@@ -700,6 +703,20 @@
     </div>
 </div>
 
+<!-- LATE PLAYER MODAL -->
+<div class="modal-overlay hidden" id="latePlayerModal">
+    <div class="modal">
+        <h3>＋ Add player to lineup</h3>
+        <p style="font-size:13px; color:#8899bb; margin-bottom:16px; line-height:1.5;">
+            Add a late arrival to the bench, then use <strong>Sub Made</strong> to bring them on.
+        </p>
+        <div id="latePlayerList" style="display:flex; flex-direction:column; gap:10px;"></div>
+        <div class="modal-actions" style="margin-top:16px;">
+            <button class="modal-cancel" onclick="closeLatePlayerModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <!-- RESET CONFIRM MODAL -->
 <div class="modal-overlay hidden" id="resetModal">
     <div class="reset-modal">
@@ -715,7 +732,9 @@
 <script>
     const FORMATION_ID   = {{ formation_id | tojson }};
     const FORMATION_NAME = {{ formation_name | tojson }};
+    const MATCH_ID       = {{ result_config.matchId | tojson }};
     const INITIAL_DATA   = {{ formations | tojson }};
+    const AVAILABLE_PLAYERS = {{ result_config.availablePlayers | tojson }};
     const STATE_KEY      = 'liveMatch_' + FORMATION_ID;
 
     let state;
@@ -744,10 +763,13 @@
             const raw = localStorage.getItem(STATE_KEY);
             if (raw) {
                 const parsed = JSON.parse(raw);
-                const eligibleIds = new Set(INITIAL_DATA.flatMap(f =>
-                    [...(f.players || []), ...(f.subs || []), ...(f.squad || [])]
-                        .map(p => String(p.id))
-                ));
+                const eligibleIds = new Set([
+                    ...INITIAL_DATA.flatMap(f =>
+                        [...(f.players || []), ...(f.subs || []), ...(f.squad || [])]
+                            .map(p => String(p.id))
+                    ),
+                    ...AVAILABLE_PLAYERS.map(p => String(p.id))
+                ]);
                 const hasIneligiblePlayers = (parsed.formations || []).some(f =>
                     ['players', 'subs', 'squad', 'subbedOff'].some(key =>
                         (f[key] || []).some(p => !eligibleIds.has(String(p.id)))
@@ -978,6 +1000,21 @@
 
         const count = state.subLog.filter(s => s.fi === state.formationIndex).length;
         document.getElementById('subTally').textContent = count + (count === 1 ? ' sub' : ' subs');
+        document.getElementById('addPlayerBtn').disabled = latePlayers().length === 0;
+    }
+
+    function formationPlayerIds(f) {
+        return new Set([
+            ...(f.players || []),
+            ...(f.subs || []),
+            ...(f.subbedOff || []),
+            ...(f.squad || [])
+        ].map(player => String(player.id)));
+    }
+
+    function latePlayers() {
+        const ids = formationPlayerIds(currentFormation());
+        return AVAILABLE_PLAYERS.filter(player => !ids.has(String(player.id)));
     }
 
     // ── LOCK ────────────────────────────────────────────────
@@ -1074,6 +1111,40 @@
         document.getElementById('subModal').classList.add('hidden');
         selectedOff = null;
         selectedOn  = null;
+    }
+
+    function openLatePlayerModal() {
+        const list = document.getElementById('latePlayerList');
+        list.innerHTML = '';
+        const players = latePlayers();
+        if (players.length === 0) {
+            list.innerHTML = '<p style="color:#8899bb; font-size:13px;">All active players are already in this lineup.</p>';
+        } else {
+            players.forEach(player => {
+                const btn = document.createElement('button');
+                btn.className = 'modal-player-btn';
+                setPlayerLabel(btn, player, player.name + (player.position ? ' · ' + player.position : ''));
+                btn.addEventListener('click', () => addLatePlayer(player));
+                list.appendChild(btn);
+            });
+        }
+        document.getElementById('latePlayerModal').classList.remove('hidden');
+    }
+
+    function closeLatePlayerModal() {
+        document.getElementById('latePlayerModal').classList.add('hidden');
+    }
+
+    function addLatePlayer(player) {
+        const f = currentFormation();
+        if (formationPlayerIds(f).has(String(player.id))) return;
+        const added = { ...player };
+        f.subs.push(added);
+        f.squad = [...(f.squad || []), added];
+        saveState();
+        closeLatePlayerModal();
+        render();
+        syncToDatabase();
     }
 
     function confirmSub() {
@@ -1218,7 +1289,9 @@
         }));
 
         try {
-            const resp = await fetch('/formations/save', {
+            const resp = await fetch(
+                MATCH_ID ? `/api/matches/${MATCH_ID}/formation` : '/formations/save',
+                {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1226,7 +1299,8 @@
                     name: FORMATION_NAME,
                     data: JSON.stringify({ formations: formationsForSave })
                 })
-            });
+                }
+            );
 
             if (resp.ok) {
                 showToast('Formation updated ✓');
