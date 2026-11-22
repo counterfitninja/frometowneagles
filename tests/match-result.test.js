@@ -128,6 +128,24 @@ test('no assist is optional and cancelling records nothing', async () => {
     assert.equal(screen.requests[0].body.goals[0].assist, null);
 });
 
+test('edits a recorded goal scorer and assist by player ID', async () => {
+    const screen = setup();
+    screen.api.chooseScorer();
+    screen.pick('Sam');
+    screen.pick('No assist');
+    await tick();
+
+    screen.api.editGoal(0);
+    screen.pick('Alex · GK #1');
+    screen.pick('Alex · DEF #2');
+    await tick();
+
+    assert.equal(screen.requests.at(-1).body.goals[0].scorer_id, '1');
+    assert.equal(screen.requests.at(-1).body.goals[0].scorer, 'Alex');
+    assert.equal(screen.requests.at(-1).body.goals[0].assist_id, '2');
+    assert.equal(screen.requests.at(-1).body.goals[0].assist, 'Alex');
+});
+
 test('offline goals survive reload and upload on reconnect', async () => {
     const screen = setup({ online: false });
     screen.api.chooseScorer();

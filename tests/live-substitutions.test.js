@@ -49,7 +49,7 @@ const formations = [{
     squad: [alex, otherAlex, sam]
 }];
 
-function setup(saved, initial = formations) {
+function setup(saved, initial = formations, availablePlayers = [alex, otherAlex, sam]) {
     const elements = new Map();
     const element = id => {
         if (!elements.has(id)) elements.set(id, new Element());
@@ -86,7 +86,9 @@ function setup(saved, initial = formations) {
     vm.createContext(context);
     vm.runInContext(script.replace('{{ formation_id | tojson }}', '1')
         .replace('{{ formation_name | tojson }}', '"Teams"')
-        .replace('{{ formations | tojson }}', JSON.stringify(initial)) +
+        .replace('{{ result_config.matchId | tojson }}', 'null')
+        .replace('{{ formations | tojson }}', JSON.stringify(initial))
+        .replace('{{ result_config.availablePlayers | tojson }}', JSON.stringify(availablePlayers)) +
         '\nloadState(); render();', context);
     return {
         api: context, element, storage, requests, alerts,
@@ -217,4 +219,25 @@ test('unlocked single-tap emergency substitutions still work', () => {
     icon.events.pointerup({ clientX: 10, clientY: 10 });
     assert.equal(screen.element('modalOffList').children[0].classList.contains('sel-off'), true);
     assert.equal(screen.count(alex), 0);
+});
+
+test('late players can be added to the bench and brought on', () => {
+    const late = { id: 4, name: 'Late player', position: 'FWD' };
+    const screen = setup(undefined, [{
+        name: 'Team', players: [alex, sam], subs: [otherAlex],
+        squad: [alex, otherAlex, sam]
+    }], [alex, otherAlex, sam, late]);
+
+    screen.api.openLatePlayerModal();
+    const lateButton = screen.element('latePlayerList').children.find(
+        button => button.textContent.includes('Late player')
+    );
+    assert.ok(lateButton);
+    lateButton.events.click();
+    assert.deepEqual(screen.state().formations[0].subs.map(p => p.id), [2, 4]);
+    assert.ok(screen.state().formations[0].squad.some(p => p.id === 4));
+
+    screen.swap(0, 1);
+    assert.equal(screen.state().formations[0].players[0].id, 4);
+    assert.deepEqual(screen.state().formations[0].subbedOff.map(p => p.id), [1]);
 });

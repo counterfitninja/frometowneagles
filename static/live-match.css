@@ -162,6 +162,7 @@
 }
 .live-screen .formation-tab.active { border-bottom-color: var(--fte-gold); }
 .live-screen .sub-btn { background: var(--fte-slate); }
+.live-screen .add-player-btn { background: var(--fte-red-deep); }
 
 .live-screen .live-player {
     flex-direction: column;
@@ -219,6 +220,7 @@
     font-size: 14px;
     cursor: pointer;
 }
+.goal-history-help { margin: 0 0 8px; color: var(--fte-paper-line); font-size: 12px; }
 .goal-entry {
     display: flex;
     align-items: center;

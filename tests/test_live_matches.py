@@ -86,7 +86,10 @@ class LiveMatchTests(unittest.TestCase):
         self.assertEqual([player['id'] for player in config['squad']], [1, 2, 3])
         self.assertEqual(config['storageKey'], f'matchResult_{match_id}')
         self.assertEqual(config['legacyKeys'], [f'matchDay_{formation_id}', f'matchDay_match-{match_id}'])
-        for control in ('goalButton', 'opponentGoalButton', 'subBtn', 'pitchEl', 'resultPicker', 'motmButton'):
+        for control in (
+            'goalButton', 'opponentGoalButton', 'subBtn', 'addPlayerBtn',
+            'pitchEl', 'resultPicker', 'motmButton'
+        ):
             self.assertIn(f'id="{control}"', html)
         self.assertIn('First half', html)
         self.assertIn('Second half', html)
@@ -101,6 +104,61 @@ class LiveMatchTests(unittest.TestCase):
         self.assertNotIn('id="subBtn"', html)
         self.assertEqual([p['id'] for p in self.config(html)['squad']], [1, 2, 3])
         self.assertEqual(self.config(self.page(f'/matches/{match_id}/result'))['matchId'], match_id)
+
+    def test_past_match_result_picker_includes_active_late_added_players(self):
+        formation_id = self.formation()
+        past_id = self.fixture(-1, formation_id=formation_id)
+        future_id = self.fixture(1, formation_id=formation_id)
+        with application.get_db() as conn:
+            conn.execute(
+                'INSERT INTO players (id, name, position, status) VALUES (?, ?, ?, ?)',
+                (6, 'Late player', 'FWD', 'active')
+            )
+            conn.commit()
+
+        past_config = self.config(self.page(f'/matches/{past_id}/live'))
+        past_squad = past_config['resultSquad']
+        future_config = self.config(self.page(f'/matches/{future_id}/live'))
+        future_squad = future_config['squad']
+        self.assertIn(6, [player['id'] for player in past_squad])
+        self.assertNotIn(6, [player['id'] for player in future_squad])
+        self.assertIn(6, [player['id'] for player in future_config['availablePlayers']])
+
+    def test_live_lineup_edit_isolated_when_formation_is_shared(self):
+        formation_id = self.formation()
+        match_id = self.fixture(formation_id=formation_id)
+        other_match_id = self.fixture(1, formation_id=formation_id)
+        data = {'formations': [{
+            'name': 'First half',
+            'players': [{'id': 1, 'name': 'Alex'}, {'id': 3, 'name': 'Sam </script>'}],
+            'subs': [{'id': 2, 'name': 'Alex'}],
+            'squad': [
+                {'id': 1, 'name': 'Alex'}, {'id': 2, 'name': 'Alex'},
+                {'id': 3, 'name': 'Sam </script>'}
+            ]
+        }]}
+
+        response = self.client.post(
+            f'/api/matches/{match_id}/formation',
+            json={'name': 'Teams', 'data': json.dumps(data)}
+        )
+        self.assertEqual(response.status_code, 200)
+        with application.get_db() as conn:
+            match = conn.execute(
+                'SELECT formation_id FROM matches WHERE id = ?', (match_id,)
+            ).fetchone()
+            other = conn.execute(
+                'SELECT formation_id FROM matches WHERE id = ?', (other_match_id,)
+            ).fetchone()
+            edited = json.loads(conn.execute(
+                'SELECT data FROM formations WHERE id = ?', (match['formation_id'],)
+            ).fetchone()[0])
+            unchanged = json.loads(conn.execute(
+                'SELECT data FROM formations WHERE id = ?', (other['formation_id'],)
+            ).fetchone()[0])
+        self.assertNotEqual(match['formation_id'], other['formation_id'])
+        self.assertEqual(edited, data)
+        self.assertNotEqual(edited, unchanged)
 
     def test_matches_overview_splits_substitutes_unavailable_and_unpicked(self):
         formation_id = self.formation()

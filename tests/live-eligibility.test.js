@@ -13,6 +13,7 @@ function restore(formations) {
     const storage = new Map([['liveMatch_1', JSON.stringify(saved)]]);
     const context = {
         INITIAL_DATA: [{ name: 'Team', players: [{ id: 1 }], subs: [{ id: 2 }], squad: [{ id: 1 }, { id: 2 }] }],
+        AVAILABLE_PLAYERS: [{ id: 1 }, { id: 2 }],
         STATE_KEY: 'liveMatch_1',
         localStorage: {
             getItem: key => storage.get(key),
